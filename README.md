@@ -26,7 +26,7 @@ A comprehensive Flutter application for sports enthusiasts to connect, chat, and
 
 1. **Clone the repository**
    ```bash
-   git clone <your-repo-url>
+   git clone https://github.com/Muhammadali2025222/sports-chat-app.git
    cd sports_chat_app
    ```
 
