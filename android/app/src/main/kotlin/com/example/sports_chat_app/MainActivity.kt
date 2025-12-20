@@ -4,8 +4,33 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.os.Build
 import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.engine.FlutterEngine
+import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
+    private val CHANNEL = "com.example.sports_chat_app/maps"
+
+    override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
+        super.configureFlutterEngine(flutterEngine)
+        
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "setMapsApiKey" -> {
+                    val apiKey = call.argument<String>("apiKey")
+                    if (apiKey != null) {
+                        // Store the API key for Google Maps to use
+                        val metadata = packageManager.getApplicationInfo(packageName, android.content.pm.PackageManager.GET_META_DATA).metaData
+                        metadata.putString("com.google.android.geo.API_KEY", apiKey)
+                        result.success(true)
+                    } else {
+                        result.error("INVALID_ARGUMENT", "API key is null", null)
+                    }
+                }
+                else -> result.notImplemented()
+            }
+        }
+    }
+
     override fun onCreate(savedInstanceState: android.os.Bundle?) {
         super.onCreate(savedInstanceState)
         createNotificationChannel()

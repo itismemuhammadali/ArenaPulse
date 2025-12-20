@@ -1,159 +1,120 @@
 import 'dart:convert';
-import 'dart:math';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:cloud_functions/cloud_functions.dart';
-import 'package:crypto/crypto.dart';
+import 'package:http/http.dart' as http;
+import 'package:sports_chat_app/src/services/remote_config_service.dart';
 
 class EmailService {
-  static const String _resetBaseUrl = 'https://sprintindex.com/reset-password'; // Update with your domain
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseFunctions _functions = FirebaseFunctions.instance;
+  static final EmailService _instance = EmailService._internal();
+  factory EmailService() => _instance;
+  EmailService._internal();
 
-  // Generate secure reset token (32 bytes = 256 bits)
-  String _generateSecureToken() {
-    final random = Random.secure();
-    final values = List<int>.generate(32, (i) => random.nextInt(256));
-    return base64Url.encode(values).replaceAll('=', ''); // Remove padding
-  }
+  final RemoteConfigService _remoteConfig = RemoteConfigService();
 
-  // Check if user exists
-  Future<bool> userExists(String email) async {
+  Future<bool> sendEmail({
+    required String to,
+    required String subject,
+    required String body,
+    bool isHtml = false,
+  }) async {
     try {
-      // Normalize email to lowercase for comparison
-      final normalizedEmail = email.toLowerCase().trim();
-      
-      final querySnapshot = await _firestore
-          .collection('users')
-          .where('email', isEqualTo: normalizedEmail)
-          .limit(1)
-          .get();
-      
-      if (querySnapshot.docs.isNotEmpty) {
+      // Ensure Remote Config is initialized
+      if (!_remoteConfig.isInitialized) {
+        await _remoteConfig.initialize();
+      }
+
+      final apiKey = _remoteConfig.emailApiKey;
+      final serviceUrl = _remoteConfig.emailServiceUrl;
+      final fromAddress = _remoteConfig.emailFromAddress;
+
+      if (apiKey.isEmpty || serviceUrl.isEmpty) {
+        print('Email service not configured in Remote Config');
+        return false;
+      }
+
+      // Example for SendGrid API
+      final response = await http.post(
+        Uri.parse('$serviceUrl/mail/send'),
+        headers: {
+          'Authorization': 'Bearer $apiKey',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'personalizations': [
+            {
+              'to': [
+                {'email': to}
+              ]
+            }
+          ],
+          'from': {'email': fromAddress},
+          'subject': subject,
+          'content': [
+            {
+              'type': isHtml ? 'text/html' : 'text/plain',
+              'value': body,
+            }
+          ],
+        }),
+      );
+
+      if (response.statusCode == 202) {
+        print('Email sent successfully to $to');
         return true;
+      } else {
+        print('Failed to send email: ${response.statusCode} - ${response.body}');
+        return false;
       }
-      
-      // Try case-insensitive search by getting all users and checking manually
-      final allUsers = await _firestore.collection('users').get();
-      for (var doc in allUsers.docs) {
-        final userData = doc.data();
-        final userEmail = userData['email']?.toString().toLowerCase().trim() ?? '';
-        if (userEmail == normalizedEmail) {
-          return true;
-        }
-      }
-      
-      return false;
     } catch (e) {
+      print('Error sending email: $e');
       return false;
     }
   }
 
-  // Save reset token to Firestore
-  Future<String?> _saveResetToken({
-    required String email,
-    required String token,
+  Future<bool> sendWelcomeEmail(String userEmail, String userName) async {
+    return await sendEmail(
+      to: userEmail,
+      subject: 'Welcome to SprintIndex!',
+      body: '''
+Hello $userName,
+
+Welcome to SprintIndex! We're excited to have you join our sports community.
+
+You can now:
+- Find sports clubs near you
+- Connect with other athletes
+- Join exciting sports events
+
+Get started by exploring clubs in your area!
+
+Best regards,
+The SprintIndex Team
+      ''',
+    );
+  }
+
+  Future<bool> sendClubInvitation({
+    required String userEmail,
+    required String userName,
+    required String clubName,
+    required String inviterName,
   }) async {
-    try {
-      // Hash the token for storage (never store plain tokens)
-      final hashedToken = sha256.convert(utf8.encode(token)).toString();
-      
-      await _firestore.collection('password_resets').doc(email).set({
-        'token': hashedToken,
-        'email': email,
-        'createdAt': FieldValue.serverTimestamp(),
-        'expiresAt': Timestamp.fromDate(
-          DateTime.now().add(const Duration(hours: 1)), // 1 hour expiration
-        ),
-        'used': false,
-      });
-      return null; // Success
-    } catch (e) {
-      return 'Error saving reset token: ${e.toString()}';
-    }
-  }
+    return await sendEmail(
+      to: userEmail,
+      subject: 'You\'re invited to join $clubName!',
+      body: '''
+Hello $userName,
 
-  // Verify reset token
-  Future<Map<String, dynamic>> verifyResetToken({
-    required String email,
-    required String token,
-  }) async {
-    try {
-      final doc = await _firestore.collection('password_resets').doc(email).get();
-      
-      if (!doc.exists) {
-        return {'success': false, 'message': 'Invalid or expired reset link'};
-      }
+$inviterName has invited you to join $clubName on SprintIndex!
 
-      final data = doc.data()!;
-      final hashedToken = data['token'] as String;
-      final expiresAt = data['expiresAt'] as Timestamp;
-      final used = data['used'] as bool;
+Join the club to:
+- Connect with fellow athletes
+- Participate in club activities
+- Stay updated on events and matches
 
-      if (used) {
-        return {'success': false, 'message': 'This reset link has already been used'};
-      }
+Open the SprintIndex app to accept this invitation.
 
-      if (DateTime.now().isAfter(expiresAt.toDate())) {
-        return {'success': false, 'message': 'Reset link has expired. Please request a new one'};
-      }
-
-      // Hash the provided token and compare
-      final providedHashedToken = sha256.convert(utf8.encode(token)).toString();
-      if (hashedToken != providedHashedToken) {
-        return {'success': false, 'message': 'Invalid reset link'};
-      }
-
-      return {'success': true, 'message': 'Token verified successfully'};
-    } catch (e) {
-      return {'success': false, 'message': 'Error verifying token: ${e.toString()}'};
-    }
-  }
-
-  // Mark reset token as used
-  Future<void> markResetTokenAsUsed(String email) async {
-    await _firestore.collection('password_resets').doc(email).update({
-      'used': true,
-    });
-  }
-
-  // Send password reset email via Cloud Function
-  Future<String?> sendPasswordResetEmail({
-    required String toEmail,
-    required String token,
-  }) async {
-    try {
-      final resetUrl = '$_resetBaseUrl?email=${Uri.encodeComponent(toEmail)}&token=${Uri.encodeComponent(token)}';
-      
-      await _functions.httpsCallable('sendPasswordResetEmail').call({
-        'email': toEmail,
-        'resetUrl': resetUrl,
-      });
-      
-      return null; // Success
-    } catch (e) {
-      return 'Error sending email: ${e.toString()}';
-    }
-  }
-
-
-
-  // Send password reset link
-  Future<String?> sendPasswordResetLink(String email) async {
-    try {
-      // Generate secure token
-      final token = _generateSecureToken();
-      
-      // Save token to Firestore
-      final saveError = await _saveResetToken(email: email, token: token);
-      if (saveError != null) return saveError;
-      
-      // Send email with reset link
-      final emailError = await sendPasswordResetEmail(toEmail: email, token: token);
-      if (emailError != null) return emailError;
-      
-      return null; // Success
-    } catch (e) {
-      return 'Error: ${e.toString()}';
-    }
+Best regards,
+The SprintIndex Team
+      ''',
+    );
   }
 }

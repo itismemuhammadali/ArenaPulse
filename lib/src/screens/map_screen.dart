@@ -6,6 +6,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:sports_chat_app/src/screens/create_club_screen.dart';
 import 'package:sports_chat_app/src/screens/club_profile_screen.dart';
 import 'package:sports_chat_app/src/screens/location_picker_screen.dart';
+import 'package:sports_chat_app/src/services/remote_config_service.dart';
+import 'package:sports_chat_app/src/services/platform_service.dart';
 import 'dart:math';
 
 class MapScreen extends StatefulWidget {
@@ -27,6 +29,7 @@ class _MapScreenState extends State<MapScreen> {
 
   final _auth = FirebaseAuth.instance;
   final _firestore = FirebaseFirestore.instance;
+  final _remoteConfig = RemoteConfigService();
   List<Map<String, dynamic>> _adminClubs = [];
   bool _isLoadingClubs = false;
   List<Map<String, dynamic>> _clubsInRadius = [];
@@ -35,6 +38,24 @@ class _MapScreenState extends State<MapScreen> {
   @override
   void initState() {
     super.initState();
+    _initializeServices();
+  }
+
+  Future<void> _initializeServices() async {
+    // Ensure Remote Config is initialized
+    if (!_remoteConfig.isInitialized) {
+      await _remoteConfig.initialize();
+    }
+    
+    // Get API key from Remote Config and set it for the platform
+    final apiKey = _remoteConfig.googleMapsApiKey;
+    debugPrint('Maps API Key loaded: ${apiKey.isNotEmpty ? "${apiKey.substring(0, 10)}..." : "Empty"}');
+    
+    if (apiKey.isNotEmpty) {
+      // Set the API key for Android (iOS uses GoogleService-Info.plist)
+      await PlatformService.setMapsApiKey(apiKey);
+    }
+    
     _getCurrentLocation();
   }
 

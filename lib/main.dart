@@ -4,6 +4,7 @@ import 'package:sports_chat_app/src/screens/splash_screen.dart';
 import 'package:sports_chat_app/src/screens/login_screen.dart';
 import 'package:sports_chat_app/src/screens/home_screen.dart';
 import 'package:sports_chat_app/src/services/notification_service.dart';
+import 'package:sports_chat_app/src/services/remote_config_service.dart';
 import 'firebase_options.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -16,6 +17,9 @@ void main() async {
   
   // Initialize notification service
   await NotificationService().initialize();
+  
+  // Initialize Remote Config
+  await RemoteConfigService().initialize();
   
   runApp(const MyApp());
 }
