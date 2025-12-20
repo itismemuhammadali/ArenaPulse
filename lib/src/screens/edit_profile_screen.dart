@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:sports_chat_app/src/screens/location_picker_screen.dart';
 
 class EditProfileScreen extends StatefulWidget {
   const EditProfileScreen({super.key});
@@ -101,28 +100,64 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   Future<void> _selectLocation() async {
-    try {
-      final result = await Navigator.push<Map<String, dynamic>>(
-        context,
-        MaterialPageRoute(
-          builder: (context) => const LocationPickerScreen(),
+    final cityController = TextEditingController(text: _locationController.text);
+    
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Edit Your City'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Enter the city where you\'re located',
+              style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: cityController,
+              decoration: InputDecoration(
+                hintText: 'e.g., New York, London, Tokyo',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(
+                    color: Color(0xFFFF8C00),
+                    width: 2,
+                  ),
+                ),
+                prefixIcon: const Icon(Icons.location_city),
+              ),
+              autofocus: true,
+            ),
+          ],
         ),
-      );
-
-      if (result != null) {
-        setState(() {
-          _locationController.text = result['locationName'];
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error selecting location: $e'),
-            backgroundColor: Colors.red,
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
           ),
-        );
-      }
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context, cityController.text.trim());
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFFF8C00),
+            ),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+
+    if (result != null) {
+      setState(() {
+        _locationController.text = result;
+      });
     }
   }
 
@@ -571,25 +606,22 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             ),
           ),
           const SizedBox(height: 8),
-          GestureDetector(
+          TextField(
+            controller: _locationController,
             onTap: _selectLocation,
-            child: TextField(
-              controller: _locationController,
-              enabled: false,
-              decoration: InputDecoration(
-                hintText: 'Tap to select location',
-                hintStyle: TextStyle(color: Colors.grey[400]),
-                filled: true,
-                fillColor: Colors.white,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide.none,
-                ),
-                contentPadding: const EdgeInsets.all(16),
-                suffixIcon: const Icon(
-                  Icons.location_on,
-                  color: Color(0xFF2196F3),
-                ),
+            decoration: InputDecoration(
+              hintText: 'Enter your city',
+              hintStyle: TextStyle(color: Colors.grey[400]),
+              filled: true,
+              fillColor: Colors.white,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide.none,
+              ),
+              contentPadding: const EdgeInsets.all(16),
+              suffixIcon: const Icon(
+                Icons.location_on,
+                color: Color(0xFF2196F3),
               ),
             ),
           ),

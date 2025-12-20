@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:sports_chat_app/src/services/image_cache_service.dart';
+import 'package:sports_chat_app/src/widgets/block_report_sheet.dart';
 import 'comments_tab.dart';
 
 class PostedTab extends StatelessWidget {
@@ -108,28 +109,40 @@ class PostedTab extends StatelessWidget {
       builder: (context, snapshot) {
         final sportsText = snapshot.data ?? 'Sports';
         
+        // Only listen to likes and dislikes counts, not the entire post
         return StreamBuilder<DocumentSnapshot>(
           stream: FirebaseFirestore.instance
               .collection('posts')
               .doc(postId)
               .snapshots(),
           builder: (context, postSnapshot) {
-            final currentPost = postSnapshot.data?.data() as Map<String, dynamic>? ?? post;
-            final currentLikesCount = currentPost['likesCount'] ?? 0;
-            final currentDislikesCount = currentPost['dislikesCount'] ?? 0;
+            // Get current counts from stream, fallback to initial post data
+            int currentLikesCount = post['likesCount'] ?? 0;
+            int currentDislikesCount = post['dislikesCount'] ?? 0;
+            int currentCommentsCount = post['commentsCount'] ?? 0;
+            
+            if (postSnapshot.hasData && postSnapshot.data != null) {
+              final data = postSnapshot.data!.data() as Map<String, dynamic>?;
+              if (data != null) {
+                currentLikesCount = data['likesCount'] ?? currentLikesCount;
+                currentDislikesCount = data['dislikesCount'] ?? currentDislikesCount;
+                currentCommentsCount = data['commentsCount'] ?? currentCommentsCount;
+              }
+            }
+            
             final currentTotalVotes = currentLikesCount + currentDislikesCount;
             final currentLikePercentage = currentTotalVotes > 0 ? ((currentLikesCount / currentTotalVotes) * 100).round() : 0;
             final currentDislikePercentage = currentTotalVotes > 0 ? ((currentDislikesCount / currentTotalVotes) * 100).round() : 0;
             
             return _buildPostCardContent(
               context,
-              currentPost,
+              post,
               postId,
               sportsText,
               timeAgo,
               currentLikePercentage,
               currentDislikePercentage,
-              currentCommentsCount: currentPost['commentsCount'] ?? 0,
+              currentCommentsCount: currentCommentsCount,
             );
           },
         );
@@ -494,27 +507,13 @@ class PostedTab extends StatelessWidget {
 
     showModalBottomSheet(
       context: context,
-      builder: (context) => Container(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (isPostOwner)
-              ListTile(
-                leading: const Icon(Icons.delete, color: Colors.red),
-                title: const Text('Delete Post'),
-                onTap: () {
-                  Navigator.pop(context);
-                  _deletePost(context, postId);
-                },
-              ),
-            ListTile(
-              leading: const Icon(Icons.close),
-              title: const Text('Close'),
-              onTap: () => Navigator.pop(context),
-            ),
-          ],
-        ),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => BlockReportSheet(
+        postId: postId,
+        userId: isPostOwner ? null : postUserId,
+        isPostOwner: isPostOwner,
+        onPostDeleted: () => _deletePost(context, postId),
       ),
     );
   }

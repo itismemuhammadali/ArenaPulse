@@ -1,12 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:sports_chat_app/src/utils/post_engagement_util.dart';
 import 'package:sports_chat_app/src/services/image_cache_service.dart';
 import 'package:sports_chat_app/src/screens/user_profile_screen.dart';
+import 'package:sports_chat_app/src/widgets/block_report_sheet.dart';
 import 'comments_tab.dart';
 
-class TemporaryTab extends StatelessWidget {
+class TemporaryTab extends StatefulWidget {
   const TemporaryTab({super.key});
+
+  @override
+  State<TemporaryTab> createState() => _TemporaryTabState();
+}
+
+class _TemporaryTabState extends State<TemporaryTab> {
 
   @override
   Widget build(BuildContext context) {
@@ -28,8 +36,18 @@ class TemporaryTab extends StatelessWidget {
         }
 
         final posts = snapshot.data?.docs ?? [];
+        
+        // Filter out expired posts
+        final now = DateTime.now();
+        final activePost = posts.where((doc) {
+          final post = doc.data() as Map<String, dynamic>;
+          final expiresAt = post['expiresAt'] as Timestamp?;
+          if (expiresAt == null) return true; // Keep posts without expiry
+          final expiryDate = expiresAt.toDate();
+          return expiryDate.isAfter(now); // Only keep posts that haven't expired
+        }).toList();
 
-        if (posts.isEmpty) {
+        if (activePost.isEmpty) {
           return Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -72,10 +90,10 @@ class TemporaryTab extends StatelessWidget {
 
         return ListView.builder(
           padding: const EdgeInsets.all(16),
-          itemCount: posts.length,
+          itemCount: activePost.length,
           itemBuilder: (context, index) {
-            final post = posts[index].data() as Map<String, dynamic>;
-            final postId = posts[index].id;
+            final post = activePost[index].data() as Map<String, dynamic>;
+            final postId = activePost[index].id;
             return _buildPostCard(post, postId);
           },
         );
@@ -97,28 +115,40 @@ class TemporaryTab extends StatelessWidget {
       builder: (context, snapshot) {
         final sportsText = snapshot.data ?? 'Sports';
         
+        // Only listen to likes and dislikes counts, not the entire post
         return StreamBuilder<DocumentSnapshot>(
           stream: FirebaseFirestore.instance
               .collection('posts')
               .doc(postId)
               .snapshots(),
           builder: (context, postSnapshot) {
-            final currentPost = postSnapshot.data?.data() as Map<String, dynamic>? ?? post;
-            final currentLikesCount = currentPost['likesCount'] ?? 0;
-            final currentDislikesCount = currentPost['dislikesCount'] ?? 0;
+            // Get current counts from stream, fallback to initial post data
+            int currentLikesCount = post['likesCount'] ?? 0;
+            int currentDislikesCount = post['dislikesCount'] ?? 0;
+            int currentCommentsCount = post['commentsCount'] ?? 0;
+            
+            if (postSnapshot.hasData && postSnapshot.data != null) {
+              final data = postSnapshot.data!.data() as Map<String, dynamic>?;
+              if (data != null) {
+                currentLikesCount = data['likesCount'] ?? currentLikesCount;
+                currentDislikesCount = data['dislikesCount'] ?? currentDislikesCount;
+                currentCommentsCount = data['commentsCount'] ?? currentCommentsCount;
+              }
+            }
+            
             final currentLikePercentage = PostEngagementUtil.calculateLikePercentage(currentLikesCount, currentDislikesCount);
             final currentDislikePercentage = PostEngagementUtil.calculateDislikePercentage(currentLikesCount, currentDislikesCount);
             
             return _buildPostCardContent(
               context,
-              currentPost,
+              post,
               postId,
               sportsText,
               timeAgo,
               timeLeft,
               currentLikePercentage,
               currentDislikePercentage,
-              currentCommentsCount: currentPost['commentsCount'] ?? 0,
+              currentCommentsCount: currentCommentsCount,
             );
           },
         );
@@ -237,7 +267,10 @@ class TemporaryTab extends StatelessWidget {
                     ),
                   ),
                 ),
-                Icon(Icons.more_horiz, color: Colors.grey[600]),
+                GestureDetector(
+                  onTap: () => _showPostMenu(context, postId, post['userId']),
+                  child: Icon(Icons.more_horiz, color: Colors.grey[600]),
+                ),
               ],
             ),
           ),
@@ -456,5 +489,65 @@ class TemporaryTab extends StatelessWidget {
 
   Future<void> _toggleDislike(String postId) async {
     await PostEngagementUtil.toggleDislike(postId);
+  }
+
+  void _showPostMenu(BuildContext context, String postId, String? postUserId) {
+    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+    final isPostOwner = currentUserId == postUserId;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => BlockReportSheet(
+        postId: postId,
+        userId: isPostOwner ? null : postUserId,
+        isPostOwner: isPostOwner,
+        onPostDeleted: () => _deletePost(postId),
+      ),
+    );
+  }
+
+  Future<void> _deletePost(String postId) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Post'),
+        content: const Text('Are you sure you want to delete this post?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    try {
+      await FirebaseFirestore.instance.collection('posts').doc(postId).delete();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Post deleted'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error deleting post: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 }

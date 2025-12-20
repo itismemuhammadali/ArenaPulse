@@ -95,7 +95,8 @@ class _HomeScreenState extends State<HomeScreen> {
               },
             ),
             IconButton(
-              icon: const Icon(Icons.arrow_circle_up_rounded, color: Colors.black),
+              icon: const Icon(Icons.arrow_circle_up_rounded, color: Colors.black, size: 32),
+              padding: const EdgeInsets.only(right: 8, left: 16),
               onPressed: () {
                 showModalBottomSheet(
                   context: context,
@@ -129,15 +130,18 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: _getNavScreen(),
-      bottomNavigationBar: BottomNavBar(
-        currentIndex: _currentNavIndex,
-        onTap: (index) {
-          setState(() {
-            _currentNavIndex = index;
-          });
-        },
+    return PopScope(
+      canPop: false,
+      child: Scaffold(
+        body: _getNavScreen(),
+        bottomNavigationBar: BottomNavBar(
+          currentIndex: _currentNavIndex,
+          onTap: (index) {
+            setState(() {
+              _currentNavIndex = index;
+            });
+          },
+        ),
       ),
     );
   }

@@ -16,6 +16,15 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/users/$(userId));
     }
     
+    // Helper function to check if user is an admin/moderator
+    // You can implement this by adding an 'isAdmin' field to user profiles
+    // or create a separate 'admins' collection
+    function isAdmin(userId) {
+      // For now, return false - implement admin check as needed
+      // Example: return get(/databases/$(database)/documents/users/$(userId)).data.get('isAdmin', false);
+      return false;
+    }
+    
     // Rules for the 'users' collection (user profiles)
     // Advanced search filters users based on:
     // 1. Users I have followed
@@ -34,9 +43,11 @@ service cloud.firestore {
       
       // Owner can update their profile
       // Anyone can update follower/following counts (for follow functionality)
+      // Allow updating blockedUsers array for blocking functionality
       allow update: if isOwner(userId) || 
         (isAuthenticated() && 
-         (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['followersCount', 'followingCount'])));
+         (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['followersCount', 'followingCount']) ||
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['blockedUsers'])));
       
       // Only the owner can delete their profile
       allow delete: if isOwner(userId);
@@ -127,6 +138,38 @@ service cloud.firestore {
       }
     }
     
+    // Rules for the 'reports' collection (content moderation)
+    // Reports can have: type ('post' | 'user'), postId, reportedUserId, reporterId,
+    // reason, additionalInfo, status, createdAt, updatedAt, postContent, userContext
+    match /reports/{reportId} {
+      // Allow authenticated users to create reports
+      // Must include required fields and reporter must be the authenticated user
+      // Prevent users from reporting themselves
+      allow create: if isAuthenticated() 
+        && request.resource.data.reporterId == request.auth.uid
+        && request.resource.data.reportedUserId != request.auth.uid
+        && request.resource.data.keys().hasAll(['type', 'reportedUserId', 'reporterId', 'reason', 'status', 'createdAt'])
+        && request.resource.data.type in ['post', 'user']
+        && request.resource.data.status == 'pending'
+        && request.resource.data.reason is string
+        && request.resource.data.reason.size() > 0;
+      
+      // Allow reporters to read their own reports
+      // Allow moderators/admins to read all reports
+      allow read: if isAuthenticated() && 
+        (resource.data.reporterId == request.auth.uid || isAdmin(request.auth.uid));
+      
+      // Allow moderators/admins to update report status
+      // Allow reporters to update their own reports (limited fields)
+      allow update: if isAuthenticated() && 
+        ((resource.data.reporterId == request.auth.uid &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['updatedAt'])) ||
+         (isAdmin(request.auth.uid) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasAny(['status', 'updatedAt'])));
+      
+      // Only allow moderators/admins to delete reports
+      allow delete: if isAuthenticated() && isAdmin(request.auth.uid);
+    }
 
     
     // Rules for password reset functionality

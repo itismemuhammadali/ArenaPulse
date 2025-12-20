@@ -5,7 +5,6 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'package:sports_chat_app/src/screens/settings_screen.dart';
-import 'package:sports_chat_app/src/screens/location_picker_screen.dart';
 import 'package:sports_chat_app/src/screens/create_club_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -142,17 +141,21 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
             
             final hasImage = postData['imageUrl'] != null && postData['imageUrl'].toString().isNotEmpty;
             final hasText = postData['text'] != null && postData['text'].toString().isNotEmpty;
+            final isPermanent = postData['isPermanent'] ?? true;
             
             // Categorize posts
-            if (hasImage) {
-              photoPosts.add(post);
-            } else if (hasText) {
-              // Only add to text posts if it has text but NO image
-              textPosts.add(post);
-            }
-            
-            // Check if temporary
-            if (postData['isPermanent'] == false) {
+            if (isPermanent) {
+              // Permanent posts: separate by content type
+              if (hasImage && !hasText) {
+                // Photo only
+                photoPosts.add(post);
+              } else if (hasText && !hasImage) {
+                // Text only
+                textPosts.add(post);
+              }
+              // If both text and image, don't show in permanent tabs
+            } else {
+              // Temporary posts: show both text and photos
               temporaryPosts.add(post);
             }
           }
@@ -537,24 +540,27 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                           : GridView.builder(
                               padding: const EdgeInsets.all(8),
                               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: 3,
+                                crossAxisCount: 2,
                                 crossAxisSpacing: 8,
                                 mainAxisSpacing: 8,
                               ),
                               itemCount: _photoPosts.length,
                               itemBuilder: (context, index) {
                                 final post = _photoPosts[index];
-                                return ClipRRect(
-                                  borderRadius: BorderRadius.circular(8),
-                                  child: Image.network(
-                                    post['imageUrl'] ?? '',
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (context, error, stackTrace) {
-                                      return Container(
-                                        color: Colors.grey[300],
-                                        child: const Icon(Icons.broken_image),
-                                      );
-                                    },
+                                return GestureDetector(
+                                  onTap: () => _showPostDetail(post),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: Image.network(
+                                      post['imageUrl'] ?? '',
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (context, error, stackTrace) {
+                                        return Container(
+                                          color: Colors.grey[300],
+                                          child: const Icon(Icons.broken_image),
+                                        );
+                                      },
+                                    ),
                                   ),
                                 );
                               },
@@ -962,35 +968,85 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
     );
   }
 
-  Future<void> _selectLocation() async {
-    try {
-      final result = await Navigator.push<Map<String, dynamic>>(
-        context,
-        MaterialPageRoute(
-          builder: (context) => const LocationPickerScreen(),
-        ),
-      );
+  void _showPostDetail(Map<String, dynamic> post) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => PostDetailModal(post: post),
+    );
+  }
 
-      if (result != null) {
+  Future<void> _selectLocation() async {
+    final cityController = TextEditingController();
+    
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Add Your City'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Enter the city where you\'re located',
+              style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: cityController,
+              decoration: InputDecoration(
+                hintText: 'e.g., New York, London, Tokyo',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(
+                    color: Color(0xFFFF8C00),
+                    width: 2,
+                  ),
+                ),
+                prefixIcon: const Icon(Icons.location_city),
+              ),
+              autofocus: true,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (cityController.text.trim().isNotEmpty) {
+                Navigator.pop(context, cityController.text.trim());
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFFF8C00),
+            ),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+
+    if (result != null && result.isNotEmpty) {
+      try {
         final user = _auth.currentUser;
         if (user != null) {
           // Save location to separate user_locations collection
           await _firestore.collection('user_locations').doc(user.uid).set({
             'userId': user.uid,
-            'location': result['locationName'],
-            'latitude': result['latitude'],
-            'longitude': result['longitude'],
-            'placeName': result['placeName'] ?? '',
-            'street': result['street'] ?? '',
-            'subLocality': result['subLocality'] ?? '',
-            'locality': result['locality'] ?? '',
-            'administrativeArea': result['administrativeArea'] ?? '',
-            'country': result['country'] ?? '',
+            'location': result,
             'updatedAt': FieldValue.serverTimestamp(),
           }, SetOptions(merge: true));
 
           setState(() {
-            _location = result['locationName'];
+            _location = result;
           });
 
           if (mounted) {
@@ -1002,15 +1058,15 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
             );
           }
         }
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error updating location: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error updating location: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       }
     }
   }
@@ -1093,16 +1149,16 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
         Text(
           count.toString(),
           style: const TextStyle(
-            fontSize: 20,
+            fontSize: 14,
             fontWeight: FontWeight.w700,
             color: Colors.black,
           ),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 2),
         Text(
           label,
           style: TextStyle(
-            fontSize: 12,
+            fontSize: 10,
             color: Colors.grey[600],
           ),
         ),
@@ -1323,6 +1379,399 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                 fontSize: 14,
                 color: Colors.grey[600],
                 height: 1.4,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class PostDetailModal extends StatefulWidget {
+  final Map<String, dynamic> post;
+
+  const PostDetailModal({
+    super.key,
+    required this.post,
+  });
+
+  @override
+  State<PostDetailModal> createState() => _PostDetailModalState();
+}
+
+class _PostDetailModalState extends State<PostDetailModal> {
+  final _firestore = FirebaseFirestore.instance;
+  final _auth = FirebaseAuth.instance;
+  late Stream<QuerySnapshot> _commentsStream;
+  int _likes = 0;
+  int _dislikes = 0;
+  bool _userLiked = false;
+  bool _userDisliked = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _commentsStream = _firestore
+        .collection('posts')
+        .doc(widget.post['id'])
+        .collection('comments')
+        .orderBy('createdAt', descending: true)
+        .snapshots();
+    _loadEngagementData();
+  }
+
+  Future<void> _loadEngagementData() async {
+    try {
+      final postDoc = await _firestore
+          .collection('posts')
+          .doc(widget.post['id'])
+          .get();
+
+      if (postDoc.exists) {
+        final data = postDoc.data()!;
+        final currentUserId = _auth.currentUser?.uid;
+
+        setState(() {
+          _likes = (data['likes'] as List?)?.length ?? 0;
+          _dislikes = (data['dislikes'] as List?)?.length ?? 0;
+          _userLiked = currentUserId != null && ((data['likes'] as List?)?.contains(currentUserId) ?? false);
+          _userDisliked = currentUserId != null && ((data['dislikes'] as List?)?.contains(currentUserId) ?? false);
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading engagement data: $e');
+    }
+  }
+
+  Future<void> _toggleLike() async {
+    final currentUserId = _auth.currentUser?.uid;
+    if (currentUserId == null) return;
+
+    final postRef = _firestore.collection('posts').doc(widget.post['id']);
+
+    try {
+      if (_userLiked) {
+        await postRef.update({
+          'likes': FieldValue.arrayRemove([currentUserId]),
+        });
+        setState(() {
+          _userLiked = false;
+          _likes--;
+        });
+      } else {
+        await postRef.update({
+          'likes': FieldValue.arrayUnion([currentUserId]),
+        });
+        if (_userDisliked) {
+          await postRef.update({
+            'dislikes': FieldValue.arrayRemove([currentUserId]),
+          });
+          setState(() {
+            _userDisliked = false;
+            _dislikes--;
+          });
+        }
+        setState(() {
+          _userLiked = true;
+          _likes++;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error toggling like: $e');
+    }
+  }
+
+  Future<void> _toggleDislike() async {
+    final currentUserId = _auth.currentUser?.uid;
+    if (currentUserId == null) return;
+
+    final postRef = _firestore.collection('posts').doc(widget.post['id']);
+
+    try {
+      if (_userDisliked) {
+        await postRef.update({
+          'dislikes': FieldValue.arrayRemove([currentUserId]),
+        });
+        setState(() {
+          _userDisliked = false;
+          _dislikes--;
+        });
+      } else {
+        await postRef.update({
+          'dislikes': FieldValue.arrayUnion([currentUserId]),
+        });
+        if (_userLiked) {
+          await postRef.update({
+            'likes': FieldValue.arrayRemove([currentUserId]),
+          });
+          setState(() {
+            _userLiked = false;
+            _likes--;
+          });
+        }
+        setState(() {
+          _userDisliked = true;
+          _dislikes++;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error toggling dislike: $e');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final hasImage = widget.post['imageUrl'] != null && 
+        widget.post['imageUrl'].toString().isNotEmpty;
+
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.9,
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      child: Column(
+        children: [
+          // Header
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const SizedBox(width: 48),
+                const Text(
+                  'Post Details',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black,
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close, color: Colors.black),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          // Content
+          Expanded(
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Image
+                  if (hasImage)
+                    Image.network(
+                      widget.post['imageUrl'] ?? '',
+                      width: double.infinity,
+                      height: 300,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Container(
+                          height: 300,
+                          color: Colors.grey[300],
+                          child: const Icon(Icons.broken_image),
+                        );
+                      },
+                    ),
+                  // Post info
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Text content
+                        if ((widget.post['text'] ?? '').toString().isNotEmpty)
+                          Text(
+                            widget.post['text'] ?? '',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              color: Colors.black,
+                              height: 1.5,
+                            ),
+                          ),
+                        if ((widget.post['text'] ?? '').toString().isNotEmpty)
+                          const SizedBox(height: 16),
+                        // Engagement stats
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceAround,
+                          children: [
+                            Column(
+                              children: [
+                                Text(
+                                  _likes.toString(),
+                                  style: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.black,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Likes',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            Column(
+                              children: [
+                                Text(
+                                  _dislikes.toString(),
+                                  style: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.black,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Dislikes',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        // Like/Dislike buttons
+                        Row(
+                          children: [
+                            Expanded(
+                              child: ElevatedButton.icon(
+                                onPressed: _toggleLike,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: _userLiked
+                                      ? const Color(0xFF2196F3)
+                                      : Colors.grey[300],
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                                icon: Icon(
+                                  Icons.thumb_up,
+                                  color: _userLiked ? Colors.white : Colors.grey[700],
+                                ),
+                                label: Text(
+                                  'Like',
+                                  style: TextStyle(
+                                    color: _userLiked ? Colors.white : Colors.grey[700],
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: ElevatedButton.icon(
+                                onPressed: _toggleDislike,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: _userDisliked
+                                      ? const Color(0xFFFF8C00)
+                                      : Colors.grey[300],
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                                icon: Icon(
+                                  Icons.thumb_down,
+                                  color: _userDisliked ? Colors.white : Colors.grey[700],
+                                ),
+                                label: Text(
+                                  'Dislike',
+                                  style: TextStyle(
+                                    color: _userDisliked ? Colors.white : Colors.grey[700],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 24),
+                        // Comments section
+                        const Text(
+                          'Comments',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.black,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                      ],
+                    ),
+                  ),
+                  // Comments list
+                  StreamBuilder<QuerySnapshot>(
+                    stream: _commentsStream,
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Padding(
+                          padding: EdgeInsets.all(16),
+                          child: CircularProgressIndicator(),
+                        );
+                      }
+
+                      if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                        return Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Text(
+                            'No comments yet',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        );
+                      }
+
+                      return ListView.builder(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: snapshot.data!.docs.length,
+                        itemBuilder: (context, index) {
+                          final comment = snapshot.data!.docs[index].data()
+                              as Map<String, dynamic>;
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 8,
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  comment['userName'] ?? 'Anonymous',
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.black,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  comment['text'] ?? '',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: Colors.grey[700],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                ],
               ),
             ),
           ),

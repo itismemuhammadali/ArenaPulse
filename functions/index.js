@@ -656,3 +656,42 @@ Questions? Contact support@sprintindex.com
     );
   }
 });
+
+// Scheduled function to delete expired temporary posts
+// Runs every hour to clean up expired posts
+exports.deleteExpiredPosts = functions.pubsub
+  .schedule('every 1 hours')
+  .onRun(async (context) => {
+    try {
+      const now = admin.firestore.Timestamp.now();
+      
+      // Query all temporary posts that have expired
+      const expiredPostsSnapshot = await admin.firestore()
+        .collection('posts')
+        .where('isPermanent', '==', false)
+        .where('expiresAt', '<=', now)
+        .get();
+      
+      console.log(`Found ${expiredPostsSnapshot.docs.length} expired posts to delete`);
+      
+      // Delete each expired post
+      const batch = admin.firestore().batch();
+      let deleteCount = 0;
+      
+      expiredPostsSnapshot.docs.forEach((doc) => {
+        batch.delete(doc.ref);
+        deleteCount++;
+      });
+      
+      // Commit the batch delete
+      if (deleteCount > 0) {
+        await batch.commit();
+        console.log(`Successfully deleted ${deleteCount} expired posts`);
+      }
+      
+      return { success: true, deletedCount: deleteCount };
+    } catch (error) {
+      console.error('Error deleting expired posts:', error);
+      return { success: false, error: error.message };
+    }
+  });

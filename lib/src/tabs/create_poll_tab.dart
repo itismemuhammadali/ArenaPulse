@@ -53,7 +53,7 @@ class _CreatePollTabState extends State<CreatePollTab> {
         padding: EdgeInsets.only(
           left: 16,
           right: 16,
-          top: 16,
+          top: 32,
           bottom: MediaQuery.of(context).viewInsets.bottom + 16,
         ),
         child: Column(
@@ -100,7 +100,7 @@ class _CreatePollTabState extends State<CreatePollTab> {
                 ),
               ],
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 28),
             // Question
             const Text(
               'Question *',

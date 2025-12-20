@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:sports_chat_app/src/services/follow_service.dart';
-import 'package:sports_chat_app/src/services/image_cache_service.dart';
 import 'package:sports_chat_app/src/screens/chat_screen.dart';
+import 'package:sports_chat_app/src/widgets/block_report_sheet.dart';
+import 'package:sports_chat_app/src/screens/profile_screen.dart';
 
 class UserProfileScreen extends StatefulWidget {
   final String userId;
@@ -37,8 +38,9 @@ class _UserProfileScreenState extends State<UserProfileScreen>
   bool _isLoading = true;
   bool _isFollowing = false;
 
-  List<Map<String, dynamic>> _permanentPosts = [];
-  List<QueryDocumentSnapshot> _permanentPostDocs = [];
+  List<QueryDocumentSnapshot> _photoPostDocs = [];
+  List<QueryDocumentSnapshot> _textPostDocs = [];
+  List<QueryDocumentSnapshot> _temporaryPostDocs = [];
 
   @override
   void initState() {
@@ -81,17 +83,40 @@ class _UserProfileScreenState extends State<UserProfileScreen>
 
         final postsList = postsSnapshot.docs.toList();
 
-        final permanentPosts = <Map<String, dynamic>>[];
-        final permanentDocs = <QueryDocumentSnapshot>[];
+        final photoPosts = <Map<String, dynamic>>[];
+        final photoPostDocs = <QueryDocumentSnapshot>[];
+        final textPosts = <Map<String, dynamic>>[];
+        final textPostDocs = <QueryDocumentSnapshot>[];
+        final temporaryPosts = <Map<String, dynamic>>[];
+        final temporaryPostDocs = <QueryDocumentSnapshot>[];
+
         for (var doc in postsList) {
           final postData = doc.data();
           final isPermanent = postData['isPermanent'] ?? true;
+          final hasImage = postData['imageUrl'] != null && postData['imageUrl'].toString().isNotEmpty;
+          final hasText = postData['text'] != null && postData['text'].toString().isNotEmpty;
+
+          final post = {
+            'id': doc.id,
+            ...postData,
+          };
+
           if (isPermanent) {
-            permanentPosts.add({
-              'id': doc.id,
-              ...postData,
-            });
-            permanentDocs.add(doc);
+            // Permanent posts: separate by content type
+            if (hasImage && !hasText) {
+              // Photo only
+              photoPosts.add(post);
+              photoPostDocs.add(doc);
+            } else if (hasText && !hasImage) {
+              // Text only
+              textPosts.add(post);
+              textPostDocs.add(doc);
+            }
+            // If both text and image, don't show in permanent tabs
+          } else {
+            // Temporary posts: show both text and photos
+            temporaryPosts.add(post);
+            temporaryPostDocs.add(doc);
           }
         }
 
@@ -136,8 +161,9 @@ class _UserProfileScreenState extends State<UserProfileScreen>
           _location = userLocation;
           _selectedSports = userSports;
           _profilePictureUrl = userData['profilePictureUrl'] ?? '';
-          _permanentPosts = permanentPosts;
-          _permanentPostDocs = permanentDocs;
+          _photoPostDocs = photoPostDocs;
+          _textPostDocs = textPostDocs;
+          _temporaryPostDocs = temporaryPostDocs;
           _totalPosts = postsList.length;
           _followers = followersCount;
           _following = followingCount;
@@ -218,6 +244,20 @@ class _UserProfileScreenState extends State<UserProfileScreen>
     );
   }
 
+  void _showUserOptions(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => BlockReportSheet(
+        userId: widget.userId,
+        userName: widget.userName,
+        fullName: _fullName,
+        isPostOwner: false,
+      ),
+    );
+  }
+
   String _getConversationId(String userId1, String userId2) {
     final ids = [userId1, userId2];
     ids.sort();
@@ -247,6 +287,13 @@ class _UserProfileScreenState extends State<UserProfileScreen>
           ),
         ),
         centerTitle: true,
+        actions: [
+          if (!isOwnProfile)
+            IconButton(
+              icon: const Icon(Icons.more_vert, color: Colors.black),
+              onPressed: () => _showUserOptions(context),
+            ),
+        ],
       ),
       body: _isLoading
           ? const Center(
@@ -427,7 +474,7 @@ class _UserProfileScreenState extends State<UserProfileScreen>
                           _buildStatItem('Temporary', 0),
                         ],
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 12),
                       // Follow/Message buttons
                       if (!isOwnProfile)
                         Row(
@@ -442,20 +489,38 @@ class _UserProfileScreenState extends State<UserProfileScreen>
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(8),
                                   ),
-                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                  padding: const EdgeInsets.symmetric(vertical: 8),
                                   elevation: 0,
                                 ),
-                                child: Text(
-                                  _isFollowing ? 'Following' : 'Follow',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                    color: _isFollowing ? Colors.black : Colors.white,
-                                  ),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      _isFollowing ? Icons.check_circle : Icons.person_add,
+                                      size: 16,
+                                      color: _isFollowing ? Colors.black : Colors.white,
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      _isFollowing ? 'Following' : 'Follow',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        color: _isFollowing ? Colors.black : Colors.white,
+                                      ),
+                                    ),
+                                    Text(
+                                      _isFollowing ? 'See their posts' : 'Get updates',
+                                      style: TextStyle(
+                                        fontSize: 9,
+                                        color: _isFollowing ? Colors.black54 : Colors.white70,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ),
-                            const SizedBox(width: 12),
+                            const SizedBox(width: 10),
                             Expanded(
                               child: ElevatedButton(
                                 onPressed: () {
@@ -466,16 +531,34 @@ class _UserProfileScreenState extends State<UserProfileScreen>
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(8),
                                   ),
-                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                  padding: const EdgeInsets.symmetric(vertical: 8),
                                   elevation: 0,
                                 ),
-                                child: const Text(
-                                  'Message',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.white,
-                                  ),
+                                child: const Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.message,
+                                      size: 16,
+                                      color: Colors.white,
+                                    ),
+                                    SizedBox(height: 2),
+                                    Text(
+                                      'Message',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                    Text(
+                                      'Send a message',
+                                      style: TextStyle(
+                                        fontSize: 9,
+                                        color: Colors.white70,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ),
@@ -522,34 +605,166 @@ class _UserProfileScreenState extends State<UserProfileScreen>
                   child: TabBarView(
                     controller: _tabController,
                     children: [
-                      // Posts Tab
-                      _permanentPosts.isEmpty
+                      // Posts Tab - Photos only
+                      _photoPostDocs.isEmpty
                           ? _buildEmptyState(
                               icon: Icons.feed,
-                              title: 'No Posts Yet',
-                              subtitle: 'When they share posts, they will appear here',
+                              title: 'No Photos Yet',
+                              subtitle: 'When they share photos, they will appear here',
+                            )
+                          : GridView.builder(
+                              padding: const EdgeInsets.all(8),
+                              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 2,
+                                crossAxisSpacing: 8,
+                                mainAxisSpacing: 8,
+                              ),
+                              itemCount: _photoPostDocs.length,
+                              itemBuilder: (context, index) {
+                                final post = _photoPostDocs[index].data() as Map<String, dynamic>;
+                                final postId = _photoPostDocs[index].id;
+                                
+                                return GestureDetector(
+                                  onTap: () => _showPostDetail(post, postId),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: Image.network(
+                                      post['imageUrl'] ?? '',
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (context, error, stackTrace) {
+                                        return Container(
+                                          color: Colors.grey[300],
+                                          child: const Icon(Icons.broken_image),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                      // Text Tab - Text only
+                      _textPostDocs.isEmpty
+                          ? _buildEmptyState(
+                              icon: Icons.text_fields,
+                              title: 'No Text Posts Yet',
+                              subtitle: 'When they share text posts, they will appear here',
                             )
                           : ListView.builder(
                               padding: const EdgeInsets.all(12),
-                              itemCount: _permanentPostDocs.length,
+                              itemCount: _textPostDocs.length,
                               itemBuilder: (context, index) {
-                                final post = _permanentPostDocs[index].data() as Map<String, dynamic>;
-                                final postId = _permanentPostDocs[index].id;
-                                return _buildPostCard(post, postId);
+                                final post = _textPostDocs[index].data() as Map<String, dynamic>;
+                                final postId = _textPostDocs[index].id;
+                                final timestamp = post['createdAt'] as Timestamp?;
+                                final date = timestamp?.toDate();
+                                final timeAgo = date != null ? _getTimeAgo(date) : '';
+
+                                return GestureDetector(
+                                  onTap: () => _showPostDetail(post, postId),
+                                  child: Card(
+                                    margin: const EdgeInsets.only(bottom: 12),
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(12),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            post['text'] ?? '',
+                                            maxLines: 3,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                              fontSize: 14,
+                                              height: 1.4,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 8),
+                                          Text(
+                                            timeAgo,
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.grey[600],
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                );
                               },
                             ),
-                      // Text Tab
-                      _buildEmptyState(
-                        icon: Icons.text_fields,
-                        title: 'No Text Posts Yet',
-                        subtitle: 'When they share text posts, they will appear here',
-                      ),
-                      // Temporary Tab
-                      _buildEmptyState(
-                        icon: Icons.schedule,
-                        title: 'No Temporary Posts',
-                        subtitle: 'Temporary posts will appear here',
-                      ),
+                      // Temporary Tab - Both text and photos
+                      _temporaryPostDocs.isEmpty
+                          ? _buildEmptyState(
+                              icon: Icons.schedule,
+                              title: 'No Temporary Posts',
+                              subtitle: 'Temporary posts will appear here',
+                            )
+                          : ListView.builder(
+                              padding: const EdgeInsets.all(12),
+                              itemCount: _temporaryPostDocs.length,
+                              itemBuilder: (context, index) {
+                                final post = _temporaryPostDocs[index].data() as Map<String, dynamic>;
+                                final postId = _temporaryPostDocs[index].id;
+                                final hasImage = post['imageUrl'] != null && 
+                                    post['imageUrl'].toString().isNotEmpty;
+                                final timestamp = post['createdAt'] as Timestamp?;
+                                final date = timestamp?.toDate();
+                                final timeAgo = date != null ? _getTimeAgo(date) : '';
+
+                                return GestureDetector(
+                                  onTap: () => _showPostDetail(post, postId),
+                                  child: Card(
+                                    margin: const EdgeInsets.only(bottom: 12),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        if (hasImage)
+                                          ClipRRect(
+                                            borderRadius: const BorderRadius.vertical(
+                                              top: Radius.circular(4),
+                                            ),
+                                            child: Image.network(
+                                              post['imageUrl'] ?? '',
+                                              width: double.infinity,
+                                              height: 200,
+                                              fit: BoxFit.cover,
+                                              errorBuilder: (context, error, stackTrace) {
+                                                return Container(
+                                                  height: 200,
+                                                  color: Colors.grey[300],
+                                                  child: const Icon(Icons.broken_image),
+                                                );
+                                              },
+                                            ),
+                                          ),
+                                        Padding(
+                                          padding: const EdgeInsets.all(12),
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              if ((post['text'] ?? '').toString().isNotEmpty)
+                                                Text(
+                                                  post['text'] ?? '',
+                                                  style: const TextStyle(fontSize: 14),
+                                                ),
+                                              if ((post['text'] ?? '').toString().isNotEmpty)
+                                                const SizedBox(height: 8),
+                                              Text(
+                                                'Posted $timeAgo',
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  color: Colors.grey[600],
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
                       // Clubs Tab
                       _buildEmptyState(
                         icon: Icons.groups,
@@ -570,16 +785,16 @@ class _UserProfileScreenState extends State<UserProfileScreen>
         Text(
           value.toString(),
           style: const TextStyle(
-            fontSize: 18,
+            fontSize: 14,
             fontWeight: FontWeight.w700,
             color: Colors.black,
           ),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 2),
         Text(
           label,
           style: TextStyle(
-            fontSize: 12,
+            fontSize: 10,
             color: Colors.grey[600],
           ),
         ),
@@ -624,92 +839,12 @@ class _UserProfileScreenState extends State<UserProfileScreen>
     );
   }
 
-  Widget _buildPostCard(Map<String, dynamic> post, String postId) {
-    final timestamp = post['createdAt'] as Timestamp?;
-    final date = timestamp?.toDate();
-    final timeAgo = date != null ? _getTimeAgo(date) : '';
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey[200]!),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              children: [
-                RepaintBoundary(
-                  child: ImageCacheService.loadProfileImage(
-                    imageUrl: _profilePictureUrl,
-                    radius: 20,
-                    fallbackInitial: (post['userName'] ?? 'U')[0].toUpperCase(),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _fullName,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14,
-                        ),
-                      ),
-                      Text(
-                        timeAgo,
-                        style: TextStyle(
-                          color: Colors.grey[600],
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                GestureDetector(
-                  onTap: () => _showPostMenu(context, postId, post['userId']),
-                  child: Icon(Icons.more_horiz, color: Colors.grey[600]),
-                ),
-              ],
-            ),
-          ),
-          // Content
-          if (post['text'] != null && post['text'].toString().isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: Text(
-                post['text'],
-                style: const TextStyle(fontSize: 14, height: 1.4),
-              ),
-            ),
-          // Image
-          if (post['imageUrl'] != null && post['imageUrl'].toString().isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Image.network(
-                post['imageUrl'],
-                width: double.infinity,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) {
-                  return Container(
-                    height: 200,
-                    color: Colors.grey[300],
-                    child: const Center(
-                      child: Icon(Icons.broken_image, size: 40),
-                    ),
-                  );
-                },
-              ),
-            ),
-        ],
-      ),
+  void _showPostDetail(Map<String, dynamic> post, String postId) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => PostDetailModal(post: {...post, 'id': postId}),
     );
   }
 
@@ -725,80 +860,6 @@ class _UserProfileScreenState extends State<UserProfileScreen>
       return '${difference.inMinutes}m ago';
     } else {
       return 'Just now';
-    }
-  }
-
-  void _showPostMenu(BuildContext context, String postId, String? postUserId) {
-    final currentUserId = _auth.currentUser?.uid;
-    final isPostOwner = currentUserId == postUserId;
-
-    showModalBottomSheet(
-      context: context,
-      builder: (context) => Container(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (isPostOwner)
-              ListTile(
-                leading: const Icon(Icons.delete, color: Colors.red),
-                title: const Text('Delete Post'),
-                onTap: () {
-                  Navigator.pop(context);
-                  _deletePost(postId);
-                },
-              ),
-            ListTile(
-              leading: const Icon(Icons.close),
-              title: const Text('Close'),
-              onTap: () => Navigator.pop(context),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<void> _deletePost(String postId) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete Post'),
-        content: const Text('Are you sure you want to delete this post?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Delete', style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm != true) return;
-
-    try {
-      await _firestore.collection('posts').doc(postId).delete();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Post deleted'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error deleting post: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
     }
   }
 }
