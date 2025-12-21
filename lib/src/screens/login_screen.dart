@@ -53,7 +53,7 @@ class _LoginScreenState extends State<LoginScreen> {
         await DeviceTokenService().saveDeviceToken();
       } catch (e) {
         // Continue even if device token save fails
-        debugPrint('Error saving device token: $e');
+
       }
       
       if (mounted) {

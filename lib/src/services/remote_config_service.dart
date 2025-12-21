@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:firebase_remote_config/firebase_remote_config.dart';
+import 'package:flutter/foundation.dart';
 
 class RemoteConfigService {
   static final RemoteConfigService _instance = RemoteConfigService._internal();
@@ -41,10 +42,10 @@ class RemoteConfigService {
         'email_from_address': 'noreply@yourapp.com',
       });
 
-      // Configure settings
+      // Configure settings with shorter timeout
       await _remoteConfig.setConfigSettings(
         RemoteConfigSettings(
-          fetchTimeout: const Duration(minutes: 1),
+          fetchTimeout: const Duration(seconds: 30),
           minimumFetchInterval: const Duration(hours: 1),
         ),
       );
@@ -53,9 +54,9 @@ class RemoteConfigService {
       await _remoteConfig.fetchAndActivate();
       
       _initialized = true;
-      print('Remote Config initialized successfully');
+      debugPrint('✅ Remote Config initialized successfully');
     } catch (e) {
-      print('Error initializing Remote Config: $e');
+      debugPrint('❌ Error initializing Remote Config: $e');
       // Continue with default values if Remote Config fails
       _initialized = true;
     }
@@ -66,9 +67,9 @@ class RemoteConfigService {
     
     try {
       await _remoteConfig.fetchAndActivate();
-      print('Remote Config refreshed');
+      debugPrint('✅ Remote Config refreshed');
     } catch (e) {
-      print('Error refreshing Remote Config: $e');
+      debugPrint('⚠️ Error refreshing Remote Config: $e');
     }
   }
 

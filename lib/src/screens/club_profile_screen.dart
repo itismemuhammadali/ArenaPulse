@@ -108,7 +108,7 @@ class _ClubProfileScreenState extends State<ClubProfileScreen>
 
       setState(() {});
     } catch (e) {
-      debugPrint('Error checking membership: $e');
+      debugPrint('Error checking membership status: $e');
     }
   }
 

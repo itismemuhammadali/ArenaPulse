@@ -43,7 +43,6 @@ dependencies:
   firebase_messaging: ^16.0.4
   cloud_functions: ^6.0.4
   firebase_remote_config: ^6.1.0
-  google_sign_in: ^6.2.0
   
   # Camera and Image
   image_picker: ^1.0.7
@@ -60,15 +59,22 @@ dependencies:
   # Google Maps
   google_maps_flutter: ^2.5.0
   
+  # OpenStreetMap
+  flutter_map: ^7.0.0
+  latlong2: ^0.9.1
+  
   # Location services
   geolocator: ^14.0.2
-  geocoding: ^3.0.0
+  geocoding: ^4.0.0
   
   # Local notifications
-  flutter_local_notifications: ^17.0.0
+  flutter_local_notifications: ^19.5.0
   
   # Emoji picker
-  emoji_picker_flutter: ^1.6.3
+  emoji_picker_flutter: ^4.4.0
+  
+  # Google Mobile Ads (AdMob)
+  google_mobile_ads: ^7.0.0
 
 dev_dependencies:
   flutter_test:
@@ -80,7 +86,7 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
-  flutter_launcher_icons: ^0.13.1
+  flutter_launcher_icons: ^0.14.4
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

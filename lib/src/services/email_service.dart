@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:sports_chat_app/src/services/remote_config_service.dart';
 
@@ -26,7 +27,7 @@ class EmailService {
       final fromAddress = _remoteConfig.emailFromAddress;
 
       if (apiKey.isEmpty || serviceUrl.isEmpty) {
-        print('Email service not configured in Remote Config');
+        debugPrint('Email service not configured in Remote Config');
         return false;
       }
 
@@ -57,14 +58,14 @@ class EmailService {
       );
 
       if (response.statusCode == 202) {
-        print('Email sent successfully to $to');
+        debugPrint('Email sent successfully to $to');
         return true;
       } else {
-        print('Failed to send email: ${response.statusCode} - ${response.body}');
+        debugPrint('Failed to send email: ${response.statusCode} - ${response.body}');
         return false;
       }
     } catch (e) {
-      print('Error sending email: $e');
+      debugPrint('Error sending email: $e');
       return false;
     }
   }

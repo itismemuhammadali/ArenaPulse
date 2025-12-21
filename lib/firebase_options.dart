@@ -69,7 +69,7 @@ class DefaultFirebaseOptions {
     appId: '1:372891657980:ios:f41c5b6d44a6000ea6d979',
     messagingSenderId: '372891657980',
     projectId: 'sprintindex',
-    iosBundleId: 'com.example.sportsChatApp',
+    iosBundleId: 'com.sprintindex.app',
     storageBucket: 'sprintindex.firebasestorage.app',
   );
 }

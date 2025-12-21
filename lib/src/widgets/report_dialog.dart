@@ -135,19 +135,34 @@ class _ReportDialogState extends State<ReportDialog> {
               ),
               child: Column(
                 children: _reasons.map((reason) {
-                  return RadioListTile<String>(
-                    title: Text(
-                      reason,
-                      style: const TextStyle(fontSize: 14),
+                  return Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () {
+                        setState(() => _selectedReason = reason);
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        child: Row(
+                          children: [
+                            Radio<String>(
+                              value: reason,
+                              groupValue: _selectedReason,
+                              onChanged: (value) {
+                                setState(() => _selectedReason = value);
+                              },
+                              activeColor: const Color(0xFFFF8C00),
+                            ),
+                            Expanded(
+                              child: Text(
+                                reason,
+                                style: const TextStyle(fontSize: 14),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
-                    value: reason,
-                    selected: _selectedReason == reason,
-                    onChanged: (value) {
-                      setState(() => _selectedReason = value);
-                    },
-                    activeColor: const Color(0xFFFF8C00),
-                    dense: true,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 8),
                   );
                 }).toList(),
               ),

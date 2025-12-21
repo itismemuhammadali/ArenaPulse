@@ -9,15 +9,43 @@ import GoogleMaps
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
-    GMSServices.provideAPIKey("AIzaSyADhp9drsTDRWRJfwyJqO0OnagYcDp67M")
-    print("✅ Google Maps API Key provided")
     GeneratedPluginRegistrant.register(with: self)
+    
+    // Setup method channels for platform communication
+    setupMethodChannels()
     
     // Setup notification categories and permissions
     setupNotificationCategories()
     requestNotificationPermissions()
     
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+  }
+  
+  private func setupMethodChannels() {
+    guard let controller = window?.rootViewController as? FlutterViewController else { return }
+    
+    let mapsChannel = FlutterMethodChannel(
+      name: "com.sprintindex.app/maps",
+      binaryMessenger: controller.binaryMessenger
+    )
+    
+    mapsChannel.setMethodCallHandler { [weak self] (call: FlutterMethodCall, result: @escaping FlutterResult) in
+      switch call.method {
+      case "setMapsApiKey":
+        if let args = call.arguments as? [String: Any],
+           let apiKey = args["apiKey"] as? String,
+           !apiKey.isEmpty {
+          GMSServices.provideAPIKey(apiKey)
+          print("✅ Google Maps API Key set successfully: \(apiKey.prefix(10))...")
+          result(true)
+        } else {
+          print("❌ API key is null or empty")
+          result(FlutterError(code: "INVALID_ARGUMENT", message: "API key is null or empty", details: nil))
+        }
+      default:
+        result(FlutterMethodNotImplemented)
+      }
+    }
   }
   
   private func setupNotificationCategories() {

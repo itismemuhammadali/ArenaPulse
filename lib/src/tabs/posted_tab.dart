@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:sports_chat_app/src/services/image_cache_service.dart';
 import 'package:sports_chat_app/src/widgets/block_report_sheet.dart';
+import 'package:sports_chat_app/src/widgets/banner_ad_widget.dart';
 import 'comments_tab.dart';
 
 class PostedTab extends StatelessWidget {
@@ -88,10 +89,29 @@ class PostedTab extends StatelessWidget {
 
         return ListView.builder(
           padding: const EdgeInsets.all(16),
-          itemCount: posts.length,
+          itemCount: _getItemCount(posts.length),
           itemBuilder: (context, index) {
-            final post = posts[index].data() as Map<String, dynamic>;
-            final postId = posts[index].id;
+            // Show ad every 13 posts (at index 12, 25, 38, etc.)
+            if ((index + 1) % 13 == 0) {
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Column(
+                  children: [
+                    const BannerAdWidget(),
+                    const SizedBox(height: 16),
+                  ],
+                ),
+              );
+            }
+
+            // Adjust post index to account for ads
+            final postIndex = _getPostIndex(index);
+            if (postIndex >= posts.length) {
+              return const SizedBox.shrink();
+            }
+
+            final post = posts[postIndex].data() as Map<String, dynamic>;
+            final postId = posts[postIndex].id;
             return _buildPostCard(post, postId);
           },
         );
@@ -407,6 +427,33 @@ class PostedTab extends StatelessWidget {
     } else {
       return 'Just now';
     }
+  }
+
+  // Calculate total item count including ads
+  int _getItemCount(int postsCount) {
+    if (postsCount == 0) return 0;
+    // Every 13 posts, we add 1 ad
+    final adsCount = (postsCount / 13).ceil();
+    return postsCount + adsCount;
+  }
+
+  // Get the actual post index from the list view index
+  int _getPostIndex(int listIndex) {
+    // For every 13 items, 1 is an ad
+    int postIndex = 0;
+    int currentIndex = 0;
+
+    while (currentIndex < listIndex) {
+      if ((currentIndex + 1) % 13 == 0) {
+        // This is an ad position, skip it
+        currentIndex++;
+      } else {
+        postIndex++;
+        currentIndex++;
+      }
+    }
+
+    return postIndex;
   }
 
   Future<void> _toggleLike(String postId) async {

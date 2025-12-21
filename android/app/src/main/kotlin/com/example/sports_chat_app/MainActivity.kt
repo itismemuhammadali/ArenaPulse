@@ -8,7 +8,7 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
-    private val CHANNEL = "com.example.sports_chat_app/maps"
+    private val CHANNEL = "com.sprintindex.app/maps"
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -17,13 +17,14 @@ class MainActivity : FlutterActivity() {
             when (call.method) {
                 "setMapsApiKey" -> {
                     val apiKey = call.argument<String>("apiKey")
-                    if (apiKey != null) {
-                        // Store the API key for Google Maps to use
-                        val metadata = packageManager.getApplicationInfo(packageName, android.content.pm.PackageManager.GET_META_DATA).metaData
-                        metadata.putString("com.google.android.geo.API_KEY", apiKey)
+                    if (apiKey != null && apiKey.isNotEmpty()) {
+                        // Initialize Google Maps with the API key
+                        com.google.android.gms.maps.MapsInitializer.initialize(this, com.google.android.gms.maps.MapsInitializer.Renderer.LATEST) {
+                            // Initialization complete
+                        }
                         result.success(true)
                     } else {
-                        result.error("INVALID_ARGUMENT", "API key is null", null)
+                        result.error("INVALID_ARGUMENT", "API key is null or empty", null)
                     }
                 }
                 else -> result.notImplemented()

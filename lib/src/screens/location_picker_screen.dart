@@ -31,8 +31,8 @@ class _LocationPickerScreenState
   void initState() {
     super.initState();
     _selectedLocation = LatLng(
-      widget.initialLatitude ?? 40.7128,
-      widget.initialLongitude ?? -74.0060,
+      widget.initialLatitude ?? 24.8607,
+      widget.initialLongitude ?? 67.0011,
     );
     _getLocationName(_selectedLocation);
   }

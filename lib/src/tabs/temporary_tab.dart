@@ -5,6 +5,7 @@ import 'package:sports_chat_app/src/utils/post_engagement_util.dart';
 import 'package:sports_chat_app/src/services/image_cache_service.dart';
 import 'package:sports_chat_app/src/screens/user_profile_screen.dart';
 import 'package:sports_chat_app/src/widgets/block_report_sheet.dart';
+import 'package:sports_chat_app/src/widgets/banner_ad_widget.dart';
 import 'comments_tab.dart';
 
 class TemporaryTab extends StatefulWidget {
@@ -90,10 +91,28 @@ class _TemporaryTabState extends State<TemporaryTab> {
 
         return ListView.builder(
           padding: const EdgeInsets.all(16),
-          itemCount: activePost.length,
+          itemCount: _getItemCount(activePost.length),
           itemBuilder: (context, index) {
-            final post = activePost[index].data() as Map<String, dynamic>;
-            final postId = activePost[index].id;
+            // Show ad every 13 posts
+            if ((index + 1) % 13 == 0) {
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Column(
+                  children: [
+                    const BannerAdWidget(),
+                    const SizedBox(height: 16),
+                  ],
+                ),
+              );
+            }
+
+            final postIndex = _getPostIndex(index);
+            if (postIndex >= activePost.length) {
+              return const SizedBox.shrink();
+            }
+
+            final post = activePost[postIndex].data() as Map<String, dynamic>;
+            final postId = activePost[postIndex].id;
             return _buildPostCard(post, postId);
           },
         );
@@ -481,6 +500,30 @@ class _TemporaryTabState extends State<TemporaryTab> {
     } else {
       return 'Expiring soon';
     }
+  }
+
+  // Calculate total item count including ads
+  int _getItemCount(int postsCount) {
+    if (postsCount == 0) return 0;
+    final adsCount = (postsCount / 13).ceil();
+    return postsCount + adsCount;
+  }
+
+  // Get the actual post index from the list view index
+  int _getPostIndex(int listIndex) {
+    int postIndex = 0;
+    int currentIndex = 0;
+
+    while (currentIndex < listIndex) {
+      if ((currentIndex + 1) % 13 == 0) {
+        currentIndex++;
+      } else {
+        postIndex++;
+        currentIndex++;
+      }
+    }
+
+    return postIndex;
   }
 
   Future<void> _toggleLike(String postId) async {

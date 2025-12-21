@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:sports_chat_app/src/services/remote_config_service.dart';
 
 class IosMapScreen extends StatefulWidget {
   const IosMapScreen({super.key});
@@ -11,16 +12,23 @@ class IosMapScreen extends StatefulWidget {
 }
 
 class _IosMapScreenState extends State<IosMapScreen> {
-  late GoogleMapController mapController;
+  GoogleMapController? mapController;
   LatLng? currentLocation;
   bool isLoading = false;
+  final RemoteConfigService _remoteConfig = RemoteConfigService();
 
   @override
   void initState() {
     super.initState();
     if (Platform.isIOS) {
-      _getCurrentLocation();
+      _initializeMap();
     }
+  }
+
+  Future<void> _initializeMap() async {
+    // Initialize remote config to get API key
+    await _remoteConfig.initialize();
+    _getCurrentLocation();
   }
 
   Future<void> _getCurrentLocation() async {
@@ -59,9 +67,11 @@ class _IosMapScreenState extends State<IosMapScreen> {
       });
 
       // Animate camera to current location
-      mapController.animateCamera(
-        CameraUpdate.newLatLngZoom(newLocation, 15),
-      );
+      if (mounted) {
+        mapController?.animateCamera(
+          CameraUpdate.newLatLngZoom(newLocation, 15),
+        );
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -94,13 +104,19 @@ class _IosMapScreenState extends State<IosMapScreen> {
           GoogleMap(
             onMapCreated: (controller) {
               mapController = controller;
+              if (currentLocation != null && mapController != null) {
+                mapController?.animateCamera(
+                  CameraUpdate.newLatLngZoom(currentLocation!, 15),
+                );
+              }
             },
             initialCameraPosition: CameraPosition(
-              target: currentLocation ?? const LatLng(0, 0),
+              target: currentLocation ?? const LatLng(37.7749, -122.4194),
               zoom: 15,
             ),
             myLocationEnabled: true,
             myLocationButtonEnabled: false,
+            zoomControlsEnabled: true,
             markers: currentLocation != null
                 ? {
                     Marker(
@@ -111,6 +127,17 @@ class _IosMapScreenState extends State<IosMapScreen> {
                   }
                 : {},
           ),
+          if (isLoading)
+            Center(
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const CircularProgressIndicator(),
+              ),
+            ),
           Positioned(
             bottom: 30,
             right: 30,
@@ -137,7 +164,7 @@ class _IosMapScreenState extends State<IosMapScreen> {
 
   @override
   void dispose() {
-    mapController.dispose();
+    mapController?.dispose();
     super.dispose();
   }
 }

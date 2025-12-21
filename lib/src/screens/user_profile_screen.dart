@@ -542,20 +542,13 @@ class _UserProfileScreenState extends State<UserProfileScreen>
                                       size: 16,
                                       color: Colors.white,
                                     ),
-                                    SizedBox(height: 2),
+                                    SizedBox(height: 4),
                                     Text(
                                       'Message',
                                       style: TextStyle(
                                         fontSize: 12,
                                         fontWeight: FontWeight.w600,
                                         color: Colors.white,
-                                      ),
-                                    ),
-                                    Text(
-                                      'Send a message',
-                                      style: TextStyle(
-                                        fontSize: 9,
-                                        color: Colors.white70,
                                       ),
                                     ),
                                   ],

@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:sports_chat_app/src/screens/create_club_screen.dart';
 import 'package:sports_chat_app/src/screens/club_profile_screen.dart';
 import 'package:sports_chat_app/src/screens/location_picker_screen.dart';
-import 'package:sports_chat_app/src/services/remote_config_service.dart';
-import 'package:sports_chat_app/src/services/platform_service.dart';
 import 'dart:math';
 
 class MapScreen extends StatefulWidget {
@@ -18,67 +17,25 @@ class MapScreen extends StatefulWidget {
 }
 
 class _MapScreenState extends State<MapScreen> {
-  GoogleMapController? _mapController;
+  MapController? _mapController;
   double _searchRadius = 5.0;
   String _selectedSport = 'All';
 
   LatLng _currentLocation = const LatLng(24.8607, 67.0011); // Karachi (safe default)
-  final Set<Marker> _markers = {};
-  final Set<Circle> _circles = {};
+  final List<Marker> _markers = [];
+  final List<CircleMarker> _circles = [];
   bool _isLoadingLocation = false;
 
   final _auth = FirebaseAuth.instance;
   final _firestore = FirebaseFirestore.instance;
-  final _remoteConfig = RemoteConfigService();
   List<Map<String, dynamic>> _adminClubs = [];
   bool _isLoadingClubs = false;
   List<Map<String, dynamic>> _clubsInRadius = [];
-  bool _showClubsList = false;
 
   @override
   void initState() {
     super.initState();
-    _initializeServices();
-  }
-
-  Future<void> _initializeServices() async {
-    // Ensure Remote Config is initialized
-    if (!_remoteConfig.isInitialized) {
-      await _remoteConfig.initialize();
-    }
-    
-    // Get API key from Remote Config and set it for the platform
-    final apiKey = _remoteConfig.googleMapsApiKey;
-    debugPrint('Maps API Key loaded: ${apiKey.isNotEmpty ? "${apiKey.substring(0, 10)}..." : "Empty"}');
-    
-    if (apiKey.isNotEmpty) {
-      // Set the API key for Android (iOS uses GoogleService-Info.plist)
-      await PlatformService.setMapsApiKey(apiKey);
-    }
-    
     _getCurrentLocation();
-  }
-
-  void _onMapCreated(GoogleMapController controller) {
-    if (!mounted) return;
-    _mapController = controller;
-    
-    // Animate to current location after map loads
-    _mapController!.animateCamera(
-      CameraUpdate.newCameraPosition(
-        CameraPosition(
-          target: _currentLocation,
-          zoom: 15.0,
-        ),
-      ),
-    );
-      
-    Future.delayed(const Duration(milliseconds: 100), () {
-      if (mounted && _mapController != null) {
-        _updateSearchCircle();
-        _loadClubMarkers();
-      }
-    });
   }
 
   void _updateSearchCircle() {
@@ -88,29 +45,19 @@ class _MapScreenState extends State<MapScreen> {
       setState(() {
         _circles.clear();
         _circles.add(
-          Circle(
-            circleId: const CircleId('search_radius'),
-            center: _currentLocation,
+          CircleMarker(
+            point: _currentLocation,
             radius: _searchRadius * 1000,
-            fillColor: const Color(0xFFFF8C00).withValues(alpha: 0.1),
-            strokeColor: const Color(0xFFFF8C00),
-            strokeWidth: 2,
+            useRadiusInMeter: true,
+            color: const Color(0xFFFF8C00).withValues(alpha: 0.1),
+            borderStrokeWidth: 2,
+            borderColor: const Color(0xFFFF8C00),
           ),
         );
       });
       
       if (_mapController != null) {
-        double zoomLevel = 15.0 - (_searchRadius / 5.0);
-        zoomLevel = zoomLevel.clamp(10.0, 18.0);
-        
-        _mapController!.animateCamera(
-          CameraUpdate.newCameraPosition(
-            CameraPosition(
-              target: _currentLocation,
-              zoom: zoomLevel,
-            ),
-          ),
-        );
+        _mapController!.move(_currentLocation, 13.0);
       }
     } catch (e) {
       debugPrint('Error updating search circle: $e');
@@ -182,14 +129,7 @@ class _MapScreenState extends State<MapScreen> {
       await _loadClubMarkers();
 
       if (_mapController != null) {
-        _mapController!.animateCamera(
-          CameraUpdate.newCameraPosition(
-            CameraPosition(
-              target: _currentLocation,
-              zoom: 15.0,
-            ),
-          ),
-        );
+        _mapController!.move(_currentLocation, 13.0);
       }
     } catch (e) {
       setState(() => _isLoadingLocation = false);
@@ -251,9 +191,17 @@ class _MapScreenState extends State<MapScreen> {
       // Add current location marker
       _markers.add(
         Marker(
-          markerId: const MarkerId('my_location'),
-          position: _currentLocation,
-          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
+          point: _currentLocation,
+          width: 40,
+          height: 40,
+          child: Container(
+            decoration: BoxDecoration(
+              color: const Color(0xFF2196F3),
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 2),
+            ),
+            child: const Icon(Icons.location_on, color: Colors.white, size: 20),
+          ),
         ),
       );
 
@@ -292,10 +240,20 @@ class _MapScreenState extends State<MapScreen> {
 
         _markers.add(
           Marker(
-            markerId: MarkerId('club_${doc.id}'),
-            position: LatLng(latitude, longitude),
-            icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange),
-            onTap: () => _showClubDetails(doc.id),
+            point: LatLng(latitude, longitude),
+            width: 40,
+            height: 40,
+            child: GestureDetector(
+              onTap: () => _showClubDetails(doc.id),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFF8C00),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 2),
+                ),
+                child: const Icon(Icons.location_on, color: Colors.white, size: 20),
+              ),
+            ),
           ),
         );
       }
@@ -615,21 +573,23 @@ class _MapScreenState extends State<MapScreen> {
     return Scaffold(
       body: Stack(
         children: [
-          // Google Map
-          SizedBox.expand(
-            child: GoogleMap(
-              onMapCreated: _onMapCreated,
-              initialCameraPosition: const CameraPosition(
-                target: LatLng(24.8607, 67.0011),
-                zoom: 11.0,
-              ),
-              markers: _markers,
-              circles: _circles,
-              myLocationEnabled: true,
-              myLocationButtonEnabled: true,
-              zoomControlsEnabled: true,
-              mapToolbarEnabled: false,
+          // OpenStreetMap
+          FlutterMap(
+            mapController: _mapController,
+            options: MapOptions(
+              initialCenter: _currentLocation,
+              initialZoom: 13.0,
+              minZoom: 5.0,
+              maxZoom: 18.0,
             ),
+            children: [
+              TileLayer(
+                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                userAgentPackageName: 'com.sprintindex.app',
+              ),
+              CircleLayer(circles: _circles),
+              MarkerLayer(markers: _markers),
+            ],
           ),
           // Top controls
           SafeArea(
@@ -867,186 +827,6 @@ class _MapScreenState extends State<MapScreen> {
                     ),
             ),
           ),
-          // Clubs List Toggle Button
-          Positioned(
-            left: 16,
-            bottom: 100,
-            child: FloatingActionButton(
-              onPressed: () {
-                setState(() {
-                  _showClubsList = !_showClubsList;
-                });
-              },
-              backgroundColor: Colors.white,
-              child: Icon(
-                _showClubsList ? Icons.close : Icons.list,
-                color: const Color(0xFFFF8C00),
-              ),
-            ),
-          ),
-          // Clubs List Panel
-          if (_showClubsList)
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              child: Container(
-                height: 300,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(20),
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.1),
-                      blurRadius: 10,
-                      offset: const Offset(0, -2),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'Clubs in Radius (${_clubsInRadius.length})',
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.black,
-                            ),
-                          ),
-                          GestureDetector(
-                            onTap: () {
-                              setState(() {
-                                _showClubsList = false;
-                              });
-                            },
-                            child: const Icon(
-                              Icons.close,
-                              color: Colors.grey,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Expanded(
-                      child: _clubsInRadius.isEmpty
-                          ? Center(
-                              child: Text(
-                                'No clubs found',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.grey[600],
-                                ),
-                              ),
-                            )
-                          : ListView.builder(
-                              padding: const EdgeInsets.symmetric(horizontal: 16),
-                              itemCount: _clubsInRadius.length,
-                              itemBuilder: (context, index) {
-                                final club = _clubsInRadius[index];
-                                return Padding(
-                                  padding: const EdgeInsets.only(bottom: 12),
-                                  child: GestureDetector(
-                                    onTap: () => _showClubDetails(club['id']),
-                                    child: Container(
-                                      padding: const EdgeInsets.all(12),
-                                      decoration: BoxDecoration(
-                                        color: Colors.grey[50],
-                                        borderRadius: BorderRadius.circular(12),
-                                        border: Border.all(
-                                          color: Colors.grey[200]!,
-                                        ),
-                                      ),
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Row(
-                                            mainAxisAlignment:
-                                                MainAxisAlignment.spaceBetween,
-                                            children: [
-                                              Expanded(
-                                                child: Text(
-                                                  club['clubName'],
-                                                  style: const TextStyle(
-                                                    fontSize: 14,
-                                                    fontWeight: FontWeight.w600,
-                                                    color: Colors.black,
-                                                  ),
-                                                ),
-                                              ),
-                                              Container(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                  horizontal: 8,
-                                                  vertical: 4,
-                                                ),
-                                                decoration: BoxDecoration(
-                                                  color: const Color(0xFFFF8C00),
-                                                  borderRadius:
-                                                      BorderRadius.circular(12),
-                                                ),
-                                                child: Text(
-                                                  '${(club['distance'] as double).toStringAsFixed(1)} km',
-                                                  style: const TextStyle(
-                                                    fontSize: 11,
-                                                    fontWeight: FontWeight.w600,
-                                                    color: Colors.white,
-                                                  ),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                          const SizedBox(height: 6),
-                                          Row(
-                                            children: [
-                                              Icon(
-                                                Icons.sports_soccer,
-                                                size: 12,
-                                                color: Colors.grey[600],
-                                              ),
-                                              const SizedBox(width: 4),
-                                              Text(
-                                                club['sport'],
-                                                style: TextStyle(
-                                                  fontSize: 12,
-                                                  color: Colors.grey[600],
-                                                ),
-                                              ),
-                                              const SizedBox(width: 12),
-                                              Icon(
-                                                Icons.people,
-                                                size: 12,
-                                                color: Colors.grey[600],
-                                              ),
-                                              const SizedBox(width: 4),
-                                              Text(
-                                                '${club['memberCount']} members',
-                                                style: TextStyle(
-                                                  fontSize: 12,
-                                                  color: Colors.grey[600],
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
         ],
       ),
     );

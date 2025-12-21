@@ -5,6 +5,7 @@ import 'package:sports_chat_app/src/screens/login_screen.dart';
 import 'package:sports_chat_app/src/screens/home_screen.dart';
 import 'package:sports_chat_app/src/services/notification_service.dart';
 import 'package:sports_chat_app/src/services/remote_config_service.dart';
+import 'package:sports_chat_app/src/services/admob_service.dart';
 import 'firebase_options.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -14,6 +15,9 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+  
+  // Initialize AdMob
+  await AdMobService().initializeMobileAds();
   
   // Initialize notification service
   await NotificationService().initialize();

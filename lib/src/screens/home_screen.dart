@@ -6,7 +6,7 @@ import 'package:sports_chat_app/src/tabs/suggested_tab.dart';
 import 'package:sports_chat_app/src/screens/events_screen.dart';
 import 'package:sports_chat_app/src/tabs/create_post_tab.dart';
 import 'package:sports_chat_app/src/screens/discover_people_screen.dart';
-import 'package:sports_chat_app/src/screens/map_screen.dart';
+import 'package:sports_chat_app/src/screens/map_screen_wrapper.dart';
 import 'package:sports_chat_app/src/screens/profile_screen.dart';
 import 'package:sports_chat_app/src/screens/messages_screen.dart';
 
@@ -39,7 +39,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildMapScreen() {
-    return const MapScreen();
+    return const MapScreenWrapper();
   }
 
   Widget _buildMessagesScreen() {

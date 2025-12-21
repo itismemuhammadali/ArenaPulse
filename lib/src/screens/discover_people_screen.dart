@@ -783,7 +783,7 @@ class _DiscoverPeopleScreenState extends State<DiscoverPeopleScreen> {
         }
       }
     } catch (e) {
-      // Error
+      debugPrint('Error toggling follow: $e');
     }
   }
 
