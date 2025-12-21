@@ -31,10 +31,16 @@ class _LocationPickerScreenState
   void initState() {
     super.initState();
     _selectedLocation = LatLng(
-      widget.initialLatitude ?? 24.8607,
-      widget.initialLongitude ?? 67.0011,
+      widget.initialLatitude ?? 33.7294, // Islamabad default
+      widget.initialLongitude ?? 73.0931,
     );
     _getLocationName(_selectedLocation);
+  }
+
+  @override
+  void dispose() {
+    _mapController?.dispose();
+    super.dispose();
   }
 
   Future<void> _getLocationName(LatLng location) async {
@@ -108,62 +114,80 @@ class _LocationPickerScreenState
 
   Future<void> _getCurrentLocation() async {
     setState(() => _isLoadingCurrentLocation = true);
+    debugPrint('🔍 Getting current location for picker...');
 
     try {
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      debugPrint('📡 Location services enabled: $serviceEnabled');
+      
       if (!serviceEnabled) {
         setState(() => _isLoadingCurrentLocation = false);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Location services are disabled.'),
+              content: Text('Location services are disabled. Please enable in Settings.'),
               backgroundColor: Colors.red,
+              duration: Duration(seconds: 3),
             ),
           );
         }
+        await Geolocator.openLocationSettings();
         return;
       }
 
       LocationPermission permission = await Geolocator.checkPermission();
+      debugPrint('🔐 Permission status: $permission');
+      
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied) {
-          setState(() => _isLoadingCurrentLocation = false);
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Location permissions are denied'),
-                backgroundColor: Colors.red,
-              ),
-            );
-          }
-          return;
-        }
+        debugPrint('🔐 Permission after request: $permission');
       }
-
+      
       if (permission == LocationPermission.deniedForever) {
         setState(() => _isLoadingCurrentLocation = false);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Location permissions are permanently denied'),
+              content: Text('Location permission permanently denied. Open Settings to enable.'),
               backgroundColor: Colors.red,
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
+        await Geolocator.openAppSettings();
+        return;
+      }
+      
+      if (permission == LocationPermission.denied) {
+        setState(() => _isLoadingCurrentLocation = false);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Location permission denied.'),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 3),
             ),
           );
         }
         return;
       }
 
+      debugPrint('✅ Permission granted, fetching position...');
+      
       Position position = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
+          accuracy: LocationAccuracy.best,
+          timeLimit: Duration(seconds: 15),
         ),
       );
+
+      debugPrint('✅ Got position: ${position.latitude}, ${position.longitude}');
 
       final currentLocation = LatLng(position.latitude, position.longitude);
 
       setState(() {
         _selectedLocation = currentLocation;
+        _isLoadingCurrentLocation = false;
       });
 
       if (_isMapReady && _mapController != null) {
@@ -177,8 +201,6 @@ class _LocationPickerScreenState
         );
       }
 
-      setState(() => _isLoadingCurrentLocation = false);
-
       await _getLocationName(currentLocation);
 
       if (mounted) {
@@ -186,16 +208,19 @@ class _LocationPickerScreenState
           const SnackBar(
             content: Text('Current location selected!'),
             backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
           ),
         );
       }
     } catch (e) {
       setState(() => _isLoadingCurrentLocation = false);
+      debugPrint('❌ Error getting location: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error getting location: ${e.toString()}'),
+            content: Text('Error: ${e.toString()}'),
             backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
           ),
         );
       }

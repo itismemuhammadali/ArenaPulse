@@ -162,15 +162,30 @@ class NotificationUtil {
       final body = '$userName posted something new';
 
       for (final followerId in followerIds) {
+        // Get follower's FCM token
+        final followerDoc = await _firestore.collection('users').doc(followerId).get();
+        final fcmToken = followerDoc.data()?['fcmToken'] as String?;
+
+        if (fcmToken == null) {
+          if (kDebugMode) {
+            print('⚠️ No FCM token for follower: $followerId');
+          }
+          continue;
+        }
+
         await _firestore.collection('notifications').add({
-          'userId': followerId,
+          'recipientUserId': followerId,
+          'fcmToken': fcmToken,
           'title': title,
           'body': body,
-          'type': 'new_post',
-          'postId': postId,
-          'postUserId': userId,
-          'userName': userName,
+          'data': {
+            'type': 'new_post',
+            'postId': postId,
+            'postUserId': userId,
+            'userName': userName,
+          },
           'createdAt': FieldValue.serverTimestamp(),
+          'sent': false,
         });
       }
 
@@ -237,15 +252,30 @@ class NotificationUtil {
     String? errorMessage,
   }) async {
     try {
+      // Get user's FCM token
+      final userDoc = await _firestore.collection('users').doc(userId).get();
+      final fcmToken = userDoc.data()?['fcmToken'] as String?;
+
+      if (fcmToken == null) {
+        if (kDebugMode) {
+          print('⚠️ No FCM token for user: $userId');
+        }
+        return;
+      }
+
       await _firestore.collection('notifications').add({
-        'userId': userId,
+        'recipientUserId': userId,
+        'fcmToken': fcmToken,
         'title': success ? 'Post Published' : 'Post Upload Failed',
         'body': success
             ? 'Your post has been published successfully'
             : 'Failed to upload post: ${errorMessage ?? 'Unknown error'}',
-        'type': 'post_upload',
-        'status': success ? 'success' : 'failed',
+        'data': {
+          'type': 'post_upload',
+          'success': success,
+        },
         'createdAt': FieldValue.serverTimestamp(),
+        'sent': false,
       });
 
       if (kDebugMode) {
@@ -270,13 +300,28 @@ class NotificationUtil {
       final body = 'Event "$eventName" has been $action';
 
       for (final recipientId in recipientIds) {
+        // Get recipient's FCM token
+        final recipientDoc = await _firestore.collection('users').doc(recipientId).get();
+        final fcmToken = recipientDoc.data()?['fcmToken'] as String?;
+
+        if (fcmToken == null) {
+          if (kDebugMode) {
+            print('⚠️ No FCM token for recipient: $recipientId');
+          }
+          continue;
+        }
+
         await _firestore.collection('notifications').add({
-          'userId': recipientId,
+          'recipientUserId': recipientId,
+          'fcmToken': fcmToken,
           'title': title,
           'body': body,
-          'type': 'event_$action',
-          'eventName': eventName,
+          'data': {
+            'type': 'event_$action',
+            'eventName': eventName,
+          },
           'createdAt': FieldValue.serverTimestamp(),
+          'sent': false,
         });
       }
 
@@ -302,13 +347,28 @@ class NotificationUtil {
       final body = 'Poll "$pollTitle" has been $action';
 
       for (final recipientId in recipientIds) {
+        // Get recipient's FCM token
+        final recipientDoc = await _firestore.collection('users').doc(recipientId).get();
+        final fcmToken = recipientDoc.data()?['fcmToken'] as String?;
+
+        if (fcmToken == null) {
+          if (kDebugMode) {
+            print('⚠️ No FCM token for recipient: $recipientId');
+          }
+          continue;
+        }
+
         await _firestore.collection('notifications').add({
-          'userId': recipientId,
+          'recipientUserId': recipientId,
+          'fcmToken': fcmToken,
           'title': title,
           'body': body,
-          'type': 'poll_$action',
-          'pollTitle': pollTitle,
+          'data': {
+            'type': 'poll_$action',
+            'pollTitle': pollTitle,
+          },
           'createdAt': FieldValue.serverTimestamp(),
+          'sent': false,
         });
       }
 
@@ -360,13 +420,28 @@ class NotificationUtil {
       }
 
       for (final recipientId in recipientIds) {
+        // Get recipient's FCM token
+        final recipientDoc = await _firestore.collection('users').doc(recipientId).get();
+        final fcmToken = recipientDoc.data()?['fcmToken'] as String?;
+
+        if (fcmToken == null) {
+          if (kDebugMode) {
+            print('⚠️ No FCM token for recipient: $recipientId');
+          }
+          continue;
+        }
+
         await _firestore.collection('notifications').add({
-          'userId': recipientId,
+          'recipientUserId': recipientId,
+          'fcmToken': fcmToken,
           'title': title,
           'body': body,
-          'type': 'club_$action',
-          'clubName': clubName,
+          'data': {
+            'type': 'club_$action',
+            'clubName': clubName,
+          },
           'createdAt': FieldValue.serverTimestamp(),
+          'sent': false,
         });
       }
 
@@ -388,13 +463,28 @@ class NotificationUtil {
   }) async {
     try {
       for (final followerId in followerIds) {
+        // Get follower's FCM token
+        final followerDoc = await _firestore.collection('users').doc(followerId).get();
+        final fcmToken = followerDoc.data()?['fcmToken'] as String?;
+
+        if (fcmToken == null) {
+          if (kDebugMode) {
+            print('⚠️ No FCM token for follower: $followerId');
+          }
+          continue;
+        }
+
         await _firestore.collection('notifications').add({
-          'userId': followerId,
+          'recipientUserId': followerId,
+          'fcmToken': fcmToken,
           'title': 'Profile Updated',
           'body': '$userName updated their profile',
-          'type': 'profile_update',
-          'userName': userName,
+          'data': {
+            'type': 'profile_update',
+            'userName': userName,
+          },
           'createdAt': FieldValue.serverTimestamp(),
+          'sent': false,
         });
       }
 
@@ -415,14 +505,29 @@ class NotificationUtil {
     required double distance,
   }) async {
     try {
+      // Get user's FCM token
+      final userDoc = await _firestore.collection('users').doc(userId).get();
+      final fcmToken = userDoc.data()?['fcmToken'] as String?;
+
+      if (fcmToken == null) {
+        if (kDebugMode) {
+          print('⚠️ No FCM token for user: $userId');
+        }
+        return;
+      }
+
       await _firestore.collection('notifications').add({
-        'userId': userId,
+        'recipientUserId': userId,
+        'fcmToken': fcmToken,
         'title': 'Club Nearby',
         'body': '$clubName is ${distance.toStringAsFixed(1)} km away',
-        'type': 'nearby_club',
-        'clubName': clubName,
-        'distance': distance,
+        'data': {
+          'type': 'nearby_club',
+          'clubName': clubName,
+          'distance': distance,
+        },
         'createdAt': FieldValue.serverTimestamp(),
+        'sent': false,
       });
 
       if (kDebugMode) {
@@ -443,17 +548,32 @@ class NotificationUtil {
     required String postId,
   }) async {
     try {
+      // Get post owner's FCM token
+      final ownerDoc = await _firestore.collection('users').doc(postOwnerId).get();
+      final fcmToken = ownerDoc.data()?['fcmToken'] as String?;
+
+      if (fcmToken == null) {
+        if (kDebugMode) {
+          print('⚠️ No FCM token for post owner: $postOwnerId');
+        }
+        return;
+      }
+
       final truncatedComment = _truncateMessage(comment);
 
       await _firestore.collection('notifications').add({
-        'userId': postOwnerId,
+        'recipientUserId': postOwnerId,
+        'fcmToken': fcmToken,
         'title': 'New Comment',
         'body': '$commenterName: $truncatedComment',
-        'type': 'comment',
-        'postId': postId,
-        'commenterName': commenterName,
-        'comment': comment,
+        'data': {
+          'type': 'comment',
+          'postId': postId,
+          'commenterName': commenterName,
+          'comment': comment,
+        },
         'createdAt': FieldValue.serverTimestamp(),
+        'sent': false,
       });
 
       if (kDebugMode) {
@@ -473,14 +593,29 @@ class NotificationUtil {
     required String postId,
   }) async {
     try {
+      // Get post owner's FCM token
+      final ownerDoc = await _firestore.collection('users').doc(postOwnerId).get();
+      final fcmToken = ownerDoc.data()?['fcmToken'] as String?;
+
+      if (fcmToken == null) {
+        if (kDebugMode) {
+          print('⚠️ No FCM token for post owner: $postOwnerId');
+        }
+        return;
+      }
+
       await _firestore.collection('notifications').add({
-        'userId': postOwnerId,
+        'recipientUserId': postOwnerId,
+        'fcmToken': fcmToken,
         'title': 'Post Liked',
         'body': '$likerName liked your post',
-        'type': 'like',
-        'postId': postId,
-        'likerName': likerName,
+        'data': {
+          'type': 'like',
+          'postId': postId,
+          'likerName': likerName,
+        },
         'createdAt': FieldValue.serverTimestamp(),
+        'sent': false,
       });
 
       if (kDebugMode) {
@@ -500,14 +635,29 @@ class NotificationUtil {
     required String postId,
   }) async {
     try {
+      // Get post owner's FCM token
+      final ownerDoc = await _firestore.collection('users').doc(postOwnerId).get();
+      final fcmToken = ownerDoc.data()?['fcmToken'] as String?;
+
+      if (fcmToken == null) {
+        if (kDebugMode) {
+          print('⚠️ No FCM token for post owner: $postOwnerId');
+        }
+        return;
+      }
+
       await _firestore.collection('notifications').add({
-        'userId': postOwnerId,
+        'recipientUserId': postOwnerId,
+        'fcmToken': fcmToken,
         'title': 'Post Disliked',
         'body': '$dislikerName disliked your post',
-        'type': 'dislike',
-        'postId': postId,
-        'dislikerName': dislikerName,
+        'data': {
+          'type': 'dislike',
+          'postId': postId,
+          'dislikerName': dislikerName,
+        },
         'createdAt': FieldValue.serverTimestamp(),
+        'sent': false,
       });
 
       if (kDebugMode) {

@@ -6,7 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:sports_chat_app/src/screens/create_club_screen.dart';
 import 'package:sports_chat_app/src/screens/club_profile_screen.dart';
-import 'package:sports_chat_app/src/screens/location_picker_screen.dart';
+import 'package:sports_chat_app/src/screens/osm_location_picker_screen.dart';
 import 'dart:math';
 
 class MapScreen extends StatefulWidget {
@@ -35,7 +35,14 @@ class _MapScreenState extends State<MapScreen> {
   @override
   void initState() {
     super.initState();
+    _mapController = MapController();
     _getCurrentLocation();
+  }
+
+  @override
+  void dispose() {
+    _mapController?.dispose();
+    super.dispose();
   }
 
   void _updateSearchCircle() {
@@ -49,15 +56,18 @@ class _MapScreenState extends State<MapScreen> {
             point: _currentLocation,
             radius: _searchRadius * 1000,
             useRadiusInMeter: true,
-            color: const Color(0xFFFF8C00).withValues(alpha: 0.1),
-            borderStrokeWidth: 2,
+            color: const Color(0xFFFF8C00).withValues(alpha: 0.15),
+            borderStrokeWidth: 3,
             borderColor: const Color(0xFFFF8C00),
           ),
         );
       });
       
+      // Adjust zoom level based on search radius
       if (_mapController != null) {
-        _mapController!.move(_currentLocation, 13.0);
+        double zoomLevel = 15.0 - (_searchRadius / 5.0);
+        zoomLevel = zoomLevel.clamp(10.0, 18.0);
+        _mapController!.move(_currentLocation, zoomLevel);
       }
     } catch (e) {
       debugPrint('Error updating search circle: $e');
@@ -66,57 +76,80 @@ class _MapScreenState extends State<MapScreen> {
 
   Future<void> _getCurrentLocation() async {
     setState(() => _isLoadingLocation = true);
+    debugPrint('🔍 Starting location request...');
 
     try {
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      debugPrint('📡 Location services enabled: $serviceEnabled');
+      
       if (!serviceEnabled) {
         setState(() => _isLoadingLocation = false);
+        debugPrint('❌ Location services disabled');
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Location services are disabled.'),
+              content: Text('Location services are disabled. Please enable in Settings.'),
               backgroundColor: Colors.red,
+              duration: Duration(seconds: 5),
             ),
           );
         }
+        await Geolocator.openLocationSettings();
         return;
       }
 
       LocationPermission permission = await Geolocator.checkPermission();
+      debugPrint('🔐 Current permission: $permission');
+      
       if (permission == LocationPermission.denied) {
+        debugPrint('🔐 Requesting permission...');
         permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied) {
-          setState(() => _isLoadingLocation = false);
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Location permissions are denied'),
-                backgroundColor: Colors.red,
-              ),
-            );
-          }
-          return;
-        }
+        debugPrint('🔐 Permission after request: $permission');
       }
-
+      
       if (permission == LocationPermission.deniedForever) {
         setState(() => _isLoadingLocation = false);
+        debugPrint('❌ Permission permanently denied');
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Location permissions are permanently denied'),
+              content: Text('Location permission permanently denied. Open Settings to enable.'),
               backgroundColor: Colors.red,
+              duration: Duration(seconds: 5),
+            ),
+          );
+        }
+        await Geolocator.openAppSettings();
+        return;
+      }
+      
+      if (permission == LocationPermission.denied) {
+        setState(() => _isLoadingLocation = false);
+        debugPrint('❌ Permission denied');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Location permission denied. Please enable in Settings.'),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 5),
             ),
           );
         }
         return;
       }
 
+      debugPrint('✅ Permission granted: $permission');
+      debugPrint('🔍 Fetching current position...');
+      
       Position position = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
+          accuracy: LocationAccuracy.best,
+          timeLimit: Duration(seconds: 15),
         ),
       );
+
+      debugPrint('✅ Got position: ${position.latitude}, ${position.longitude}');
+      debugPrint('📍 Accuracy: ${position.accuracy}m');
 
       final newLocation = LatLng(position.latitude, position.longitude);
 
@@ -125,19 +158,28 @@ class _MapScreenState extends State<MapScreen> {
         _isLoadingLocation = false;
       });
 
+      debugPrint('🔄 State updated');
+
+      await Future.delayed(const Duration(milliseconds: 300));
+
+      if (_mapController != null && mounted) {
+        debugPrint('🗺️ Moving map to: $newLocation');
+        _mapController!.move(_currentLocation, 15.0);
+      }
+
       _updateSearchCircle();
       await _loadClubMarkers();
 
-      if (_mapController != null) {
-        _mapController!.move(_currentLocation, 13.0);
-      }
+      debugPrint('✅ Location update complete');
     } catch (e) {
       setState(() => _isLoadingLocation = false);
+      debugPrint('❌ Error: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error getting location: ${e.toString()}'),
+            content: Text('Error: ${e.toString()}'),
             backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
           ),
         );
       }
@@ -314,7 +356,7 @@ class _MapScreenState extends State<MapScreen> {
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => LocationPickerScreen(
+        builder: (context) => OSMLocationPickerScreen(
           initialLatitude: club['latitude'],
           initialLongitude: club['longitude'],
         ),
@@ -568,6 +610,180 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
+  Future<void> _showClubsListSheet() async {
+    if (!mounted) return;
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.5,
+        maxChildSize: 0.9,
+        minChildSize: 0.3,
+        builder: (context, scrollController) => Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Clubs in Radius (${_clubsInRadius.length})',
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.black,
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[200],
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.close,
+                        size: 18,
+                        color: Colors.black,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: _clubsInRadius.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.location_off,
+                            size: 64,
+                            color: Colors.grey[300],
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'No clubs in this radius',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  : ListView.builder(
+                      controller: scrollController,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      itemCount: _clubsInRadius.length,
+                      itemBuilder: (context, index) {
+                        final club = _clubsInRadius[index];
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: GestureDetector(
+                            onTap: () {
+                              Navigator.pop(context);
+                              _showClubDetails(club['id']);
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: Colors.grey[50],
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: Colors.grey[200]!,
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          club['clubName'],
+                                          style: const TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w600,
+                                            color: Colors.black,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Row(
+                                          children: [
+                                            Icon(
+                                              Icons.sports_soccer,
+                                              size: 14,
+                                              color: Colors.grey[600],
+                                            ),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              club['sport'],
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                color: Colors.grey[600],
+                                              ),
+                                            ),
+                                            const SizedBox(width: 12),
+                                            Icon(
+                                              Icons.people,
+                                              size: 14,
+                                              color: Colors.grey[600],
+                                            ),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              '${club['memberCount']} members',
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                color: Colors.grey[600],
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 6,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFFF8C00),
+                                      borderRadius: BorderRadius.circular(20),
+                                    ),
+                                    child: Text(
+                                      '${(club['distance'] as double).toStringAsFixed(1)} km',
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -805,11 +1021,26 @@ class _MapScreenState extends State<MapScreen> {
               ],
             ),
           ),
+          // Menu Button - Bottom Left
+          Positioned(
+            left: 16,
+            bottom: 16,
+            child: FloatingActionButton(
+              heroTag: 'menuButton',
+              onPressed: _showClubsListSheet,
+              backgroundColor: Colors.white,
+              child: const Icon(
+                Icons.menu,
+                color: Color(0xFFFF8C00),
+              ),
+            ),
+          ),
           // My Location Button
           Positioned(
             right: 16,
-            bottom: 100,
+            bottom: 16,
             child: FloatingActionButton(
+              heroTag: 'locationButton',
               onPressed: _isLoadingLocation ? null : _getCurrentLocation,
               backgroundColor: Colors.white,
               child: _isLoadingLocation

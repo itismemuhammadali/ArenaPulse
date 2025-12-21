@@ -5,7 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'package:sports_chat_app/src/services/club_service.dart';
 import 'package:sports_chat_app/src/services/image_cache_service.dart';
-import 'package:sports_chat_app/src/screens/location_picker_screen.dart';
+import 'package:sports_chat_app/src/screens/osm_location_picker_screen.dart';
 
 class ClubSettingsSheet extends StatefulWidget {
   final String clubId;
@@ -290,7 +290,7 @@ class _ClubSettingsSheetState extends State<ClubSettingsSheet> {
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => LocationPickerScreen(
+        builder: (context) => OSMLocationPickerScreen(
           initialLatitude: _clubData['latitude'],
           initialLongitude: _clubData['longitude'],
         ),

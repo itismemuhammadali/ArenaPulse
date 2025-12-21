@@ -3,7 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:sports_chat_app/src/services/club_service.dart';
 import 'package:sports_chat_app/src/services/image_cache_service.dart';
-import 'package:sports_chat_app/src/screens/location_picker_screen.dart';
+import 'package:sports_chat_app/src/screens/osm_location_picker_screen.dart';
 
 class CreateClubScreen extends StatefulWidget {
   const CreateClubScreen({super.key});
@@ -103,7 +103,7 @@ class _CreateClubScreenState extends State<CreateClubScreen> {
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => LocationPickerScreen(
+        builder: (context) => OSMLocationPickerScreen(
           initialLatitude: _clubLatitude,
           initialLongitude: _clubLongitude,
         ),
