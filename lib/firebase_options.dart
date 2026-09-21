@@ -47,22 +47,38 @@ class DefaultFirebaseOptions {
     }
   }
 
-  /// Securely resolves the API key from environment (--dart-define) or decoded internal token
-  static String _resolveKey(String envVar, String encoded) {
-    final envKey = String.fromEnvironment(envVar);
+  static String _getWebKey() {
+    const envKey = String.fromEnvironment('FIREBASE_WEB_API_KEY');
     if (envKey.isNotEmpty) return envKey;
     try {
-      return utf8.decode(base64.decode(encoded));
+      return utf8.decode(base64.decode('QUl6YVN5Q1dDODNSUVY0R29WZGVCWFZZcTVhNUlHVzgzYnBscVVV'));
+    } catch (_) {
+      return '';
+    }
+  }
+
+  static String _getAndroidKey() {
+    const envKey = String.fromEnvironment('FIREBASE_ANDROID_API_KEY');
+    if (envKey.isNotEmpty) return envKey;
+    try {
+      return utf8.decode(base64.decode('QUl6YVN5RDM3OWNXUXZ6aHZ4WTJiLUxaQVNRckZKVHB2OERtY3Zv'));
+    } catch (_) {
+      return '';
+    }
+  }
+
+  static String _getIosKey() {
+    const envKey = String.fromEnvironment('FIREBASE_IOS_API_KEY');
+    if (envKey.isNotEmpty) return envKey;
+    try {
+      return utf8.decode(base64.decode('QUl6YVN5QzlUc2c0V0RDME5tcHI4OGNlMWlYZzV3d2ZueEVBbG5r'));
     } catch (_) {
       return '';
     }
   }
 
   static FirebaseOptions get web => FirebaseOptions(
-    apiKey: _resolveKey(
-      'FIREBASE_WEB_API_KEY',
-      'QUl6YVN5Q1dDODNSUVY0R29WZGVCWFZZcTVhNUlHVzgzYnBscVVV',
-    ),
+    apiKey: _getWebKey(),
     appId: '1:714323934336:web:8d07a401b3d4d0f0c33a65',
     messagingSenderId: '714323934336',
     projectId: 'sports-chat-app-2e067',
@@ -72,10 +88,7 @@ class DefaultFirebaseOptions {
   );
 
   static FirebaseOptions get android => FirebaseOptions(
-    apiKey: _resolveKey(
-      'FIREBASE_ANDROID_API_KEY',
-      'QUl6YVN5RDM3OWNXUXZ6aHZ4WTJiLUxaQVNRckZKVHB2OERtY3Zv',
-    ),
+    apiKey: _getAndroidKey(),
     appId: '1:372891657980:android:b64c5302a1fcdc19a6d979',
     messagingSenderId: '372891657980',
     projectId: 'sprintindex',
@@ -83,10 +96,7 @@ class DefaultFirebaseOptions {
   );
 
   static FirebaseOptions get ios => FirebaseOptions(
-    apiKey: _resolveKey(
-      'FIREBASE_IOS_API_KEY',
-      'QUl6YVN5QzlUc2c0V0RDME5tcHI4OGNlMWlYZzV3d2ZueEVBbG5r',
-    ),
+    apiKey: _getIosKey(),
     appId: '1:372891657980:ios:f41c5b6d44a6000ea6d979',
     messagingSenderId: '372891657980',
     projectId: 'sprintindex',
