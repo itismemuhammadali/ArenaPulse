@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
+import 'package:sports_chat_app/src/services/php_storage_service.dart';
 import 'package:image_picker/image_picker.dart';
-import 'dart:io';
 import 'package:sports_chat_app/src/services/club_service.dart';
 import 'package:sports_chat_app/src/services/image_cache_service.dart';
 import 'package:sports_chat_app/src/screens/osm_location_picker_screen.dart';
@@ -35,9 +34,11 @@ class _ClubSettingsSheetState extends State<ClubSettingsSheet> {
   bool _isSaving = false;
   static const List<String> _availableSports = [
     'Football',
-    'Basketball',
-    'Tennis',
     'Cricket',
+    'Tennis',
+    'Hockey',
+    'Padel',
+    'Basketball',
     'Rugby',
     'Athletics/Track & Field',
   ];
@@ -73,16 +74,20 @@ class _ClubSettingsSheetState extends State<ClubSettingsSheet> {
 
     if (image != null) {
       try {
-        final storageRef = FirebaseStorage.instance
-            .ref()
-            .child('club_pictures/${widget.clubId}');
-        await storageRef.putFile(File(image.path));
-        final url = await storageRef.getDownloadURL();
-
-        await _clubService.updateClubSettings(
-          clubId: widget.clubId,
-          profilePictureUrl: url,
+        final url = await PhpStorageService().uploadFile(
+          file: image,
+          folder: 'clubs',
         );
+
+        if (url != null) {
+          await _clubService.updateClubSettings(
+            clubId: widget.clubId,
+            profilePictureUrl: url,
+          );
+          _loadClubData();
+        } else {
+          throw Exception('Server rejected file upload');
+        }
 
         _loadClubData();
       } catch (e) {

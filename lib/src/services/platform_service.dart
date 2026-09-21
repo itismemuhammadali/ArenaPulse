@@ -7,6 +7,7 @@ class PlatformService {
 
   static Future<void> setMapsApiKey(String apiKey) async {
     try {
+      if (kIsWeb) return;
       if (Platform.isAndroid) {
         await _channel.invokeMethod('setMapsApiKey', {'apiKey': apiKey});
         debugPrint('Android Maps API key set successfully');

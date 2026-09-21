@@ -43,19 +43,22 @@ class _SplashScreenState extends State<SplashScreen> {
           children: [
             // Logo image
             Image.asset(
-              'lib/assets/logo.PNG',
-              width: 150,
-              height: 150,
+              Theme.of(context).brightness == Brightness.dark
+                  ? 'lib/assets/crater_code_dark.png'
+                  : 'lib/assets/crater_code_light.png',
+              width: 160,
+              height: 160,
               fit: BoxFit.contain,
             ),
-            const SizedBox(height: 40),
+            const SizedBox(height: 30),
             // App name
             const Text(
-              'SprintIndex',
+              'Crater Code',
               style: TextStyle(
-                fontSize: 36,
+                fontSize: 34,
                 fontWeight: FontWeight.bold,
                 color: Colors.black87,
+                letterSpacing: 0.5,
               ),
             ),
             const SizedBox(height: 12),

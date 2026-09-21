@@ -126,28 +126,34 @@ class _SignupScreenState extends State<SignupScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     ClipRRect(
-                      borderRadius: BorderRadius.circular(4),
+                      borderRadius: BorderRadius.circular(8),
                       child: Image.asset(
-                        'lib/assets/logo1.jpg',
+                        Theme.of(context).brightness == Brightness.dark
+                            ? 'lib/assets/crater_code_dark.png'
+                            : 'lib/assets/crater_code_light.png',
                         width: 60,
                         height: 60,
-                        fit: BoxFit.cover,
+                        fit: BoxFit.contain,
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 10),
                     RichText(
-                      text: const TextSpan(
-                        style: TextStyle(
+                      text: TextSpan(
+                        style: const TextStyle(
                           fontSize: 28,
-                          fontWeight: FontWeight.w500,
+                          fontWeight: FontWeight.w700,
                         ),
                         children: [
                           TextSpan(
-                            text: 'Sprint',
-                            style: TextStyle(color: Colors.black),
+                            text: 'Crater ',
+                            style: TextStyle(
+                              color: Theme.of(context).brightness == Brightness.dark
+                                  ? Colors.white
+                                  : Colors.black87,
+                            ),
                           ),
-                          TextSpan(
-                            text: 'Index',
+                          const TextSpan(
+                            text: 'Code',
                             style: TextStyle(color: Color(0xFFFF8C00)),
                           ),
                         ],

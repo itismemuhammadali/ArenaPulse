@@ -104,6 +104,8 @@ flutter:
     - lib/assets/logo.PNG
     - lib/assets/logo1.jpg
     - lib/assets/New-logo-and-name.jpg
+    - lib/assets/crater_code_dark.png
+    - lib/assets/crater_code_light.png
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

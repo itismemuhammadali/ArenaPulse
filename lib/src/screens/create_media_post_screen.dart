@@ -3,7 +3,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:video_player/video_player.dart';
-import 'package:firebase_storage/firebase_storage.dart';
+import 'package:sports_chat_app/src/services/php_storage_service.dart';
 import 'package:sports_chat_app/src/services/post_service.dart';
 
 class CreateMediaPostScreen extends StatefulWidget {
@@ -68,47 +68,25 @@ class _CreateMediaPostScreenState extends State<CreateMediaPostScreen> {
     try {
       String mediaUrl;
       
-      // For web development, use a placeholder URL since CORS blocks Firebase Storage uploads
-      // On mobile or production, this will upload properly
-      if (kIsWeb) {
-        // Use the local blob URL as placeholder for web testing
-        mediaUrl = widget.mediaFile.path;
-        
-        // Show info that this is a test post
+      // Upload media to PHP Backend
+      final String? uploadedUrl = await PhpStorageService().uploadFile(
+        file: widget.mediaFile,
+        folder: 'posts',
+      );
+
+      if (uploadedUrl == null) {
         if (mounted) {
+          setState(() => _isLoading = false);
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Note: Using local URL for web testing. Deploy to mobile for full functionality.'),
-              duration: Duration(seconds: 2),
+              content: Text('Failed to upload media to server. Please try again.'),
+              backgroundColor: Colors.red,
             ),
           );
         }
-      } else {
-        // Upload media to Firebase Storage for mobile
-        try {
-          final String fileName = '${DateTime.now().millisecondsSinceEpoch}_${widget.mediaFile.name}';
-          final String mediaType = widget.isVideo ? 'videos' : 'images';
-          final Reference storageRef = FirebaseStorage.instance
-              .ref()
-              .child('posts')
-              .child(mediaType)
-              .child(fileName);
-          
-          final uploadTask = await storageRef.putFile(File(widget.mediaFile.path));
-          mediaUrl = await uploadTask.ref.getDownloadURL();
-        } catch (e) {
-          if (mounted) {
-            setState(() => _isLoading = false);
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Upload error: ${e.toString()}'),
-                backgroundColor: Colors.red,
-              ),
-            );
-          }
-          return;
-        }
+        return;
       }
+      mediaUrl = uploadedUrl;
       
       // Create post in Firestore
       final postService = PostService();

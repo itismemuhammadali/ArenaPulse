@@ -26,6 +26,10 @@
         android:label="SprintIndex"
         android:name="${applicationName}"
         android:icon="@mipmap/launcher_icon">
+        <!-- AdMob App ID -->
+        <meta-data
+            android:name="com.google.android.gms.ads.APPLICATION_ID"
+            android:value="ca-app-pub-9854588468192765~2853366721"/>
         <activity
             android:name=".MainActivity"
             android:exported="true"

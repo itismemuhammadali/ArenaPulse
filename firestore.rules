@@ -20,9 +20,7 @@ service cloud.firestore {
     // You can implement this by adding an 'isAdmin' field to user profiles
     // or create a separate 'admins' collection
     function isAdmin(userId) {
-      // For now, return false - implement admin check as needed
-      // Example: return get(/databases/$(database)/documents/users/$(userId)).data.get('isAdmin', false);
-      return false;
+      return get(/databases/$(database)/documents/users/$(userId)).data.get('role', '') == 'super_admin';
     }
     
     // Rules for the 'users' collection (user profiles)
@@ -35,7 +33,7 @@ service cloud.firestore {
     // 6. Clubs I'm in or admin of (by club name)
     match /users/{userId} {
       // A user can create their own profile
-      allow create: if isOwner(userId) && request.resource.data.isPrivate is bool;
+      allow create: if isOwner(userId);
       
       // Allow reading all user profiles for discovery
       // isPrivate only controls post visibility, not profile discoverability
@@ -142,33 +140,10 @@ service cloud.firestore {
     // Reports can have: type ('post' | 'user'), postId, reportedUserId, reporterId,
     // reason, additionalInfo, status, createdAt, updatedAt, postContent, userContext
     match /reports/{reportId} {
-      // Allow authenticated users to create reports
-      // Must include required fields and reporter must be the authenticated user
-      // Prevent users from reporting themselves
-      allow create: if isAuthenticated() 
-        && request.resource.data.reporterId == request.auth.uid
-        && request.resource.data.reportedUserId != request.auth.uid
-        && request.resource.data.keys().hasAll(['type', 'reportedUserId', 'reporterId', 'reason', 'status', 'createdAt'])
-        && request.resource.data.type in ['post', 'user']
-        && request.resource.data.status == 'pending'
-        && request.resource.data.reason is string
-        && request.resource.data.reason.size() > 0;
-      
-      // Allow reporters to read their own reports
-      // Allow moderators/admins to read all reports
-      allow read: if isAuthenticated() && 
-        (resource.data.reporterId == request.auth.uid || isAdmin(request.auth.uid));
-      
-      // Allow moderators/admins to update report status
-      // Allow reporters to update their own reports (limited fields)
-      allow update: if isAuthenticated() && 
-        ((resource.data.reporterId == request.auth.uid &&
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['updatedAt'])) ||
-         (isAdmin(request.auth.uid) &&
-          request.resource.data.diff(resource.data).affectedKeys().hasAny(['status', 'updatedAt'])));
-      
-      // Only allow moderators/admins to delete reports
-      allow delete: if isAuthenticated() && isAdmin(request.auth.uid);
+      allow create: if isAuthenticated();
+      allow read: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if isAuthenticated() && (isAdmin(request.auth.uid) || resource.data.get('reportedBy', '') == request.auth.uid || resource.data.get('reporterId', '') == request.auth.uid);
     }
 
     
@@ -371,6 +346,26 @@ service cloud.firestore {
         allow update: if isAuthenticated() && 
           request.auth.uid in get(/databases/$(database)/documents/clubs/$(clubId)).data.memberIds;
       }
+    }
+
+    // Rules for facilities and nets
+    match /facilities/{facilityId} {
+      allow read: if true;
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if isAuthenticated() && (resource.data.ownerId == request.auth.uid || isAdmin(request.auth.uid));
+
+      match /nets/{netId} {
+        allow read: if true;
+        allow write: if isAuthenticated();
+      }
+    }
+
+    // Rules for bookings (Cash on arrival)
+    match /bookings/{bookingId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update, delete: if isAuthenticated();
     }
   }
 }

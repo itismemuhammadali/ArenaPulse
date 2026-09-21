@@ -4,6 +4,7 @@ import 'package:sports_chat_app/src/screens/home_screen.dart';
 import 'package:sports_chat_app/src/screens/forgot_password_screen.dart';
 import 'package:sports_chat_app/src/services/auth_service.dart';
 import 'package:sports_chat_app/src/services/device_token_service.dart';
+import 'package:sports_chat_app/src/widgets/flow_navigator_sheet.dart';
 
 
 class LoginScreen extends StatefulWidget {
@@ -74,6 +75,21 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
+  void _openFlowNavigator() {
+    FlowNavigatorSheet.show(
+      context,
+      onFillCredentials: (email, password) {
+        _emailController.text = email;
+        _passwordController.text = password;
+      },
+      onAutoLogin: (email, password) async {
+        _emailController.text = email;
+        _passwordController.text = password;
+        await _handleLogin();
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -83,34 +99,52 @@ class _LoginScreenState extends State<LoginScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 24.0),
             child: Column(
               children: [
-              const SizedBox(height: 60),
+              const SizedBox(height: 16),
+              // Quick Flow Navigator Chip
+              Align(
+                alignment: Alignment.centerRight,
+                child: ActionChip(
+                  avatar: const Icon(Icons.alt_route, color: Color(0xFFFF8C00), size: 16),
+                  label: const Text('All Screen Flows', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Color(0xFFFF8C00))),
+                  backgroundColor: const Color(0xFFFF8C00).withValues(alpha: 0.1),
+                  side: const BorderSide(color: Color(0xFFFF8C00)),
+                  onPressed: _openFlowNavigator,
+                ),
+              ),
+              const SizedBox(height: 24),
               // Logo
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   ClipRRect(
-                    borderRadius: BorderRadius.circular(4),
+                    borderRadius: BorderRadius.circular(8),
                     child: Image.asset(
-                      'lib/assets/logo1.jpg',
+                      Theme.of(context).brightness == Brightness.dark
+                          ? 'lib/assets/crater_code_dark.png'
+                          : 'lib/assets/crater_code_light.png',
                       width: 60,
                       height: 60,
-                      fit: BoxFit.cover,
+                      fit: BoxFit.contain,
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 10),
                   RichText(
-                    text: const TextSpan(
-                      style: TextStyle(
+                    text: TextSpan(
+                      style: const TextStyle(
                         fontSize: 28,
-                        fontWeight: FontWeight.w500,
+                        fontWeight: FontWeight.w700,
                       ),
                       children: [
                         TextSpan(
-                          text: 'Sprint',
-                          style: TextStyle(color: Colors.black),
+                          text: 'Crater ',
+                          style: TextStyle(
+                            color: Theme.of(context).brightness == Brightness.dark
+                                ? Colors.white
+                                : Colors.black87,
+                          ),
                         ),
-                        TextSpan(
-                          text: 'Index',
+                        const TextSpan(
+                          text: 'Code',
                           style: TextStyle(color: Color(0xFFFF8C00)),
                         ),
                       ],
@@ -286,6 +320,27 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ],
               ),
+              const SizedBox(height: 28),
+              // Prominent Screen Flow Navigator Button
+              OutlinedButton.icon(
+                onPressed: _openFlowNavigator,
+                icon: const Icon(Icons.hub_rounded, color: Color(0xFFFF8C00)),
+                label: const Text(
+                  '🧭 Screen Flow Navigator (All Accesses)',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                    fontSize: 14,
+                  ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                  side: BorderSide(color: const Color(0xFFFF8C00).withValues(alpha: 0.5), width: 1.5),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  backgroundColor: const Color(0xFFFF8C00).withValues(alpha: 0.05),
+                ),
+              ),
+              const SizedBox(height: 30),
             ],
             ),
           ),

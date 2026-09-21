@@ -12,6 +12,9 @@ class RemoteConfigService {
 
   // API Keys - Platform specific
   String get googleMapsApiKey {
+    if (kIsWeb) {
+      return _remoteConfig.getString('google_maps_api_key');
+    }
     if (Platform.isIOS) {
       return _remoteConfig.getString('google_maps_api_key_ios');
     } else if (Platform.isAndroid) {

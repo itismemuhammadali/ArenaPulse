@@ -30,9 +30,11 @@ class _CreateClubScreenState extends State<CreateClubScreen> {
   String? _selectedSport;
   static const List<String> _availableSports = [
     'Football',
-    'Basketball',
-    'Tennis',
     'Cricket',
+    'Tennis',
+    'Hockey',
+    'Padel',
+    'Basketball',
     'Rugby',
     'Athletics/Track & Field',
   ];

@@ -1,0 +1,26 @@
+# SprintIndex PHP Backend Apache Configuration
+Options -Indexes
+
+# Enable CORS
+<IfModule mod_headers.c>
+    Header set Access-Control-Allow-Origin "*"
+    Header set Access-Control-Allow-Methods "GET, POST, OPTIONS, DELETE"
+    Header set Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With"
+</IfModule>
+
+# Increase upload limits on Apache/PHP
+<IfModule mod_php.c>
+    php_value upload_max_filesize 25M
+    php_value post_max_size 30M
+    php_value memory_limit 128M
+</IfModule>
+<IfModule mod_php7.c>
+    php_value upload_max_filesize 25M
+    php_value post_max_size 30M
+    php_value memory_limit 128M
+</IfModule>
+<IfModule mod_php8.c>
+    php_value upload_max_filesize 25M
+    php_value post_max_size 30M
+    php_value memory_limit 128M
+</IfModule>

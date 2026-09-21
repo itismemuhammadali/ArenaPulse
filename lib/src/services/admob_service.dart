@@ -18,6 +18,7 @@ class AdMobService {
   InterstitialAd? _interstitialAd;
 
   Future<void> initializeMobileAds() async {
+    if (kIsWeb) return;
     try {
       await MobileAds.instance.initialize();
     } catch (e) {

@@ -26,9 +26,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   
   final List<String> _availableSports = [
     'Football',
-    'Basketball',
-    'Tennis',
     'Cricket',
+    'Tennis',
+    'Hockey',
+    'Padel',
+    'Basketball',
     'Rugby',
     'Athletics/Track & Field',
   ];

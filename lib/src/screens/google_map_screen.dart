@@ -807,9 +807,11 @@ class _GoogleMapScreenState extends State<GoogleMapScreen> {
                                   items: [
                                     'All',
                                     'Football',
-                                    'Basketball',
-                                    'Tennis',
                                     'Cricket',
+                                    'Tennis',
+                                    'Hockey',
+                                    'Padel',
+                                    'Basketball',
                                     'Rugby',
                                     'Athletics/Track & Field',
                                   ].map((sport) {

@@ -7,6 +7,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:sports_chat_app/src/screens/create_club_screen.dart';
 import 'package:sports_chat_app/src/screens/club_profile_screen.dart';
 import 'package:sports_chat_app/src/screens/osm_location_picker_screen.dart';
+import 'package:sports_chat_app/src/services/facility_service.dart';
+import 'package:sports_chat_app/src/screens/facility_details_screen.dart';
 import 'dart:math';
 
 class MapScreen extends StatefulWidget {
@@ -31,6 +33,7 @@ class _MapScreenState extends State<MapScreen> {
   List<Map<String, dynamic>> _adminClubs = [];
   bool _isLoadingClubs = false;
   List<Map<String, dynamic>> _clubsInRadius = [];
+  List<Facility> _facilitiesInRadius = [];
 
   @override
   void initState() {
@@ -229,6 +232,7 @@ class _MapScreenState extends State<MapScreen> {
 
       _markers.clear();
       _clubsInRadius = [];
+      _facilitiesInRadius = [];
 
       // Add current location marker
       _markers.add(
@@ -247,6 +251,7 @@ class _MapScreenState extends State<MapScreen> {
         ),
       );
 
+      // 1. Process Clubs
       for (var doc in snapshot.docs) {
         final data = doc.data();
         final latitude = data['latitude'] as double?;
@@ -303,14 +308,157 @@ class _MapScreenState extends State<MapScreen> {
       _clubsInRadius.sort((a, b) =>
           (a['distance'] as double).compareTo(b['distance'] as double));
 
+      // 2. Process Facilities (Sports Nets & Venues)
+      try {
+        final facilitySnapshot = await _firestore.collection('facilities').get();
+        for (var doc in facilitySnapshot.docs) {
+          final facility = Facility.fromFirestore(doc);
+
+          if (_selectedSport != 'All' &&
+              !facility.sports.any((s) => s.toLowerCase() == _selectedSport.toLowerCase())) {
+            continue;
+          }
+
+          final distance = _calculateDistance(
+            _currentLocation.latitude,
+            _currentLocation.longitude,
+            facility.latitude,
+            facility.longitude,
+          );
+
+          if (distance > _searchRadius) continue;
+
+          _facilitiesInRadius.add(facility);
+
+          _markers.add(
+            Marker(
+              point: LatLng(facility.latitude, facility.longitude),
+              width: 44,
+              height: 44,
+              child: GestureDetector(
+                onTap: () => _showFacilityModal(facility),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF10B981), // Emerald green for facilities
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 2.5),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.35),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: const Icon(Icons.sports_cricket, color: Colors.white, size: 22),
+                ),
+              ),
+            ),
+          );
+        }
+      } catch (fErr) {
+        debugPrint('Facility loading note: $fErr');
+      }
+
       setState(() {});
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading clubs: $e')),
+          SnackBar(content: Text('Error loading map data: $e')),
         );
       }
     }
+  }
+
+  void _showFacilityModal(Facility facility) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1E293B),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
+                    facility.name,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.green.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Text(
+                    'Cash on Arrival',
+                    style: TextStyle(color: Colors.greenAccent, fontSize: 11, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                const Icon(Icons.location_on, size: 14, color: Color(0xFF38BDF8)),
+                const SizedBox(width: 4),
+                Text(
+                  '${facility.city} • ${facility.address}',
+                  style: const TextStyle(color: Colors.white70, fontSize: 13),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 6,
+              children: facility.sports.map((s) => Chip(
+                label: Text(s, style: const TextStyle(fontSize: 11, color: Colors.white)),
+                backgroundColor: const Color(0xFF0F172A),
+                padding: EdgeInsets.zero,
+                visualDensity: VisualDensity.compact,
+              )).toList(),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              height: 46,
+              child: ElevatedButton.icon(
+                icon: const Icon(Icons.sports_baseball, color: Colors.white, size: 18),
+                label: const Text(
+                  'View Available Nets & Book',
+                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF2563EB),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => FacilityDetailsScreen(facility: facility),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   double _calculateDistance(double lat1, double lon1, double lat2, double lon2) {
@@ -784,6 +932,190 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
+  Future<void> _showFacilitiesListSheet() async {
+    if (!mounted) return;
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF1E293B),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.6,
+        maxChildSize: 0.9,
+        minChildSize: 0.3,
+        builder: (context, scrollController) => Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.sports_cricket, color: Color(0xFF10B981), size: 24),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Sports Nets & Venues (${_facilitiesInRadius.length})',
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                  GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: Container(
+                      width: 32,
+                      height: 32,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFF0F172A),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.close,
+                        size: 18,
+                        color: Colors.white70,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: _facilitiesInRadius.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.stadium_outlined,
+                            size: 64,
+                            color: Colors.white.withOpacity(0.2),
+                          ),
+                          const SizedBox(height: 16),
+                          const Text(
+                            'No sports nets found in this radius',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white60,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          const Text(
+                            'Try expanding your search radius using the slider above',
+                            style: TextStyle(fontSize: 12, color: Colors.white38),
+                          ),
+                        ],
+                      ),
+                    )
+                  : ListView.separated(
+                      controller: scrollController,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      itemCount: _facilitiesInRadius.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 12),
+                      itemBuilder: (context, index) {
+                        final facility = _facilitiesInRadius[index];
+                        return Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF0F172A),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: Colors.white12),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      facility.name,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: Colors.green.withOpacity(0.15),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: const Text(
+                                      'Cash on Arrival',
+                                      style: TextStyle(
+                                        color: Colors.greenAccent,
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                '${facility.city} • ${facility.address}',
+                                style: const TextStyle(color: Colors.white60, fontSize: 12),
+                              ),
+                              const SizedBox(height: 10),
+                              Wrap(
+                                spacing: 6,
+                                children: facility.sports.map((s) => Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF1E293B),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(s, style: const TextStyle(color: Color(0xFF38BDF8), fontSize: 11)),
+                                )).toList(),
+                              ),
+                              const SizedBox(height: 12),
+                              SizedBox(
+                                width: double.infinity,
+                                height: 40,
+                                child: ElevatedButton.icon(
+                                  icon: const Icon(Icons.calendar_today, size: 16, color: Colors.white),
+                                  label: const Text(
+                                    'View Nets & Book',
+                                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                                  ),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF2563EB),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                  ),
+                                  onPressed: () {
+                                    Navigator.pop(context);
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => FacilityDetailsScreen(facility: facility),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -954,9 +1286,11 @@ class _MapScreenState extends State<MapScreen> {
                                   items: [
                                     'All',
                                     'Football',
-                                    'Basketball',
-                                    'Tennis',
                                     'Cricket',
+                                    'Tennis',
+                                    'Hockey',
+                                    'Padel',
+                                    'Basketball',
                                     'Rugby',
                                     'Athletics/Track & Field',
                                   ].map((sport) {
@@ -1021,7 +1355,7 @@ class _MapScreenState extends State<MapScreen> {
               ],
             ),
           ),
-          // Menu Button - Bottom Left
+          // Menu Button - Bottom Left (Clubs)
           Positioned(
             left: 16,
             bottom: 16,
@@ -1032,6 +1366,21 @@ class _MapScreenState extends State<MapScreen> {
               child: const Icon(
                 Icons.menu,
                 color: Color(0xFFFF8C00),
+              ),
+            ),
+          ),
+          // Facilities & Nets Button - Bottom Left
+          Positioned(
+            left: 80,
+            bottom: 16,
+            child: FloatingActionButton.extended(
+              heroTag: 'facilitiesButton',
+              onPressed: _showFacilitiesListSheet,
+              backgroundColor: const Color(0xFF10B981),
+              icon: const Icon(Icons.sports_cricket, color: Colors.white, size: 20),
+              label: Text(
+                'Nets (${_facilitiesInRadius.length})',
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
               ),
             ),
           ),

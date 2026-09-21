@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
+import 'package:sports_chat_app/src/services/php_storage_service.dart';
 import 'package:image_picker/image_picker.dart';
-import 'dart:io';
 import 'package:sports_chat_app/src/screens/settings_screen.dart';
 import 'package:sports_chat_app/src/screens/create_club_screen.dart';
+import 'package:sports_chat_app/src/services/role_service.dart';
+import 'package:sports_chat_app/src/screens/owner_dashboard_screen.dart';
+import 'package:sports_chat_app/src/screens/facility_onboarding_screen.dart';
+import 'package:sports_chat_app/src/screens/super_admin_dashboard_screen.dart';
+import 'package:sports_chat_app/src/screens/customer_bookings_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -18,6 +22,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
   late TabController _tabController;
   final _auth = FirebaseAuth.instance;
   final _firestore = FirebaseFirestore.instance;
+  UserRole _userRole = UserRole.customer;
   
   String _username = '';
   String _bio = '';
@@ -31,9 +36,11 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
   
   final List<String> _availableSports = [
     'Football',
-    'Basketball',
-    'Tennis',
     'Cricket',
+    'Tennis',
+    'Hockey',
+    'Padel',
+    'Basketball',
     'Rugby',
     'Athletics/Track & Field',
   ];
@@ -216,6 +223,12 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
             _following = followingCount;
             _isLoading = false;
           });
+
+          // Check user role
+          try {
+            final role = await RoleService().getCurrentUserRole();
+            if (mounted) setState(() => _userRole = role);
+          } catch (_) {}
         }
       }
     } catch (e) {
@@ -483,6 +496,205 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                     _buildStatItem('Temporary', _temporary),
                   ],
                 ),
+                const SizedBox(height: 14),
+
+                // My Bookings Action Button
+                GestureDetector(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const CustomerBookingsScreen()),
+                    );
+                  },
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF1F5F9),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.black12),
+                    ),
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.calendar_month, size: 18, color: Color(0xFF2563EB)),
+                        SizedBox(width: 8),
+                        Text(
+                          'My Net Bookings (Cash on Arrival)',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF1E293B),
+                          ),
+                        ),
+                        Spacer(),
+                        Icon(Icons.chevron_right, size: 18, color: Colors.black45),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+
+                // Role-Aware Action Banner
+                if (_userRole == UserRole.superAdmin)
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const SuperAdminDashboardScreen()),
+                      );
+                    },
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF4C1D95), Color(0xFF1E1B4B)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.purple.withOpacity(0.25),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.admin_panel_settings, color: Colors.purpleAccent, size: 28),
+                          SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  '⚡ Super Admin Portal',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                SizedBox(height: 2),
+                                Text(
+                                  'Platform volume, facility charts & complaints',
+                                  style: TextStyle(color: Colors.white70, fontSize: 11),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Icon(Icons.arrow_forward_ios, color: Colors.white70, size: 14),
+                        ],
+                      ),
+                    ),
+                  )
+                else if (_userRole == UserRole.facilityOwner)
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const OwnerDashboardScreen()),
+                      );
+                    },
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF065F46), Color(0xFF0F172A)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.green.withOpacity(0.2),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.sports_cricket, color: Color(0xFF34D399), size: 28),
+                          SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  '🏟️ Manage Venue & Nets',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                SizedBox(height: 2),
+                                Text(
+                                  'Net dimensions, live bookings & PKR sales',
+                                  style: TextStyle(color: Colors.white70, fontSize: 11),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Icon(Icons.arrow_forward_ios, color: Colors.white70, size: 14),
+                        ],
+                      ),
+                    ),
+                  )
+                else
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const FacilityOnboardingScreen()),
+                      );
+                    },
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF1E293B), Color(0xFF0F172A)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFF38BDF8).withOpacity(0.3)),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.add_business_outlined, color: Color(0xFF38BDF8), size: 26),
+                          SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'List Your Sports Venue / Nets',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                SizedBox(height: 2),
+                                Text(
+                                  'Cricket nets, football turf & padel (Cash on Arrival)',
+                                  style: TextStyle(color: Colors.white60, fontSize: 11),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Icon(Icons.arrow_forward_ios, color: Colors.white70, size: 13),
+                        ],
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -1086,16 +1298,15 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
       final user = _auth.currentUser;
       if (user == null) return;
 
-      // Upload to Firebase Storage
-      final fileName = 'profile_${user.uid}.jpg';
-      final storageRef = FirebaseStorage.instance
-          .ref()
-          .child('profiles')
-          .child(user.uid)
-          .child(fileName);
+      // Upload to PHP Backend Storage
+      final downloadUrl = await PhpStorageService().uploadFile(
+        file: pickedFile,
+        folder: 'profiles',
+      );
 
-      await storageRef.putFile(File(pickedFile.path));
-      final downloadUrl = await storageRef.getDownloadURL();
+      if (downloadUrl == null) {
+        throw Exception('Failed to upload image to server');
+      }
 
       // Update Firestore
       await _firestore.collection('users').doc(user.uid).update({
