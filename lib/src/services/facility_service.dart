@@ -429,7 +429,21 @@ class FacilityService {
     return bookedHours;
   }
 
-  /// Book an hourly slot (Cash on Arrival)
+  /// Helper to check if a continuous range of hours is available
+  Future<bool> isRangeAvailable({
+    required String netId,
+    required String dateStr,
+    required int startHour,
+    required int durationHours,
+  }) async {
+    final booked = await getBookedHours(netId: netId, dateStr: dateStr);
+    for (int h = startHour; h < startHour + durationHours; h++) {
+      if (booked.contains(h)) return false;
+    }
+    return true;
+  }
+
+  /// Book an hourly slot (Cash on Arrival) with zero-overlap guarantee
   Future<String> bookSlot({
     required String facilityId,
     required String netId,
@@ -446,11 +460,17 @@ class FacilityService {
     final user = _auth.currentUser;
     if (user == null) throw Exception('Please log in to book');
 
-    // Prevent double booking collision
+    if (endHour <= startHour) {
+      throw Exception('Invalid booking duration: End hour must be greater than start hour.');
+    }
+
+    // Zero-overlap enforcement: re-check latest status in Firestore
     final bookedHours = await getBookedHours(netId: netId, dateStr: date);
     for (int h = startHour; h < endHour; h++) {
       if (bookedHours.contains(h)) {
-        throw Exception('Slot $h:00 - ${h + 1}:00 has already been booked.');
+        throw Exception(
+          'Conflict detected: The slot $h:00 - ${h + 1}:00 is already reserved by another team/player. Overlapping bookings are not allowed.',
+        );
       }
     }
 

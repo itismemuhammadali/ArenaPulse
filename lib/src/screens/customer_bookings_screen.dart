@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:sports_chat_app/src/services/facility_service.dart';
+import 'package:sports_chat_app/src/screens/map_screen.dart';
 
 class CustomerBookingsScreen extends StatefulWidget {
   const CustomerBookingsScreen({Key? key}) : super(key: key);
@@ -224,19 +225,46 @@ class _CustomerBookingsScreenState extends State<CustomerBookingsScreen> {
                             ),
                           ),
 
-                          // Cancel button if confirmed
+                          // Action Buttons if confirmed
                           if (b.status == 'confirmed') ...[
-                            const SizedBox(height: 10),
-                            Align(
-                              alignment: Alignment.centerRight,
-                              child: TextButton.icon(
-                                onPressed: () => _cancelBooking(b),
-                                icon: const Icon(Icons.close, size: 16, color: Colors.redAccent),
-                                label: const Text(
-                                  'Cancel Reservation',
-                                  style: TextStyle(color: Colors.redAccent, fontSize: 12),
+                            const SizedBox(height: 12),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                ElevatedButton.icon(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF2563EB),
+                                    foregroundColor: Colors.white,
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                  ),
+                                  icon: const Icon(Icons.navigation_rounded, size: 15),
+                                  label: const Text(
+                                    'Navigate (OSM GPS)',
+                                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                                  ),
+                                  onPressed: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => MapScreen(
+                                          targetFacilityId: b.facilityId,
+                                          autoStartNav: true,
+                                          activeBooking: b,
+                                        ),
+                                      ),
+                                    );
+                                  },
                                 ),
-                              ),
+                                TextButton.icon(
+                                  onPressed: () => _cancelBooking(b),
+                                  icon: const Icon(Icons.close, size: 16, color: Colors.redAccent),
+                                  label: const Text(
+                                    'Cancel',
+                                    style: TextStyle(color: Colors.redAccent, fontSize: 12),
+                                  ),
+                                ),
+                              ],
                             ),
                           ],
                         ],

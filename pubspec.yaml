@@ -75,6 +75,8 @@ dependencies:
   
   # Google Mobile Ads (AdMob)
   google_mobile_ads: ^7.0.0
+  flutter_tts: ^4.2.5
+  url_launcher: ^6.3.2
 
 dev_dependencies:
   flutter_test:

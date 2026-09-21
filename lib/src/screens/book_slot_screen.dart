@@ -2,16 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:sports_chat_app/src/services/facility_service.dart';
 import 'package:sports_chat_app/src/screens/customer_bookings_screen.dart';
+import 'package:sports_chat_app/src/screens/map_screen.dart';
 
 class BookSlotScreen extends StatefulWidget {
   final Facility facility;
   final SportsNet net;
 
   const BookSlotScreen({
-    Key? key,
+    super.key,
     required this.facility,
     required this.net,
-  }) : super(key: key);
+  });
 
   @override
   State<BookSlotScreen> createState() => _BookSlotScreenState();
@@ -22,6 +23,8 @@ class _BookSlotScreenState extends State<BookSlotScreen> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
   DateTime _selectedDate = DateTime.now();
+  int _selectedDuration = 1; // 1, 2, 3, 4 hours
+  int? _startHour; // starting slot hour
   final Set<int> _selectedHours = {};
   List<int> _bookedHours = [];
   bool _isLoadingSlots = false;
@@ -29,6 +32,8 @@ class _BookSlotScreenState extends State<BookSlotScreen> {
 
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
+
+  final List<int> _durationOptions = [1, 2, 3, 4];
 
   @override
   void initState() {
@@ -45,9 +50,16 @@ class _BookSlotScreenState extends State<BookSlotScreen> {
     return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
   }
 
+  String _formatHour(int h) {
+    final period = h >= 12 ? 'PM' : 'AM';
+    final standard = h > 12 ? h - 12 : (h == 0 ? 12 : h);
+    return '$standard:00 $period';
+  }
+
   Future<void> _loadBookedSlots() async {
     setState(() {
       _isLoadingSlots = true;
+      _startHour = null;
       _selectedHours.clear();
     });
 
@@ -70,29 +82,117 @@ class _BookSlotScreenState extends State<BookSlotScreen> {
     }
   }
 
-  void _onSlotTapped(int hour) {
-    if (_bookedHours.contains(hour)) return;
+  Future<void> _pickCalendarDate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate.isBefore(now) ? now : _selectedDate,
+      firstDate: now,
+      lastDate: now.add(const Duration(days: 90)),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.dark(
+              primary: Color(0xFF2563EB),
+              onPrimary: Colors.white,
+              surface: Color(0xFF1E293B),
+              onSurface: Colors.white,
+            ),
+            dialogBackgroundColor: const Color(0xFF0F172A),
+          ),
+          child: child!,
+        );
+      },
+    );
 
+    if (picked != null && picked != _selectedDate) {
+      setState(() {
+        _selectedDate = picked;
+      });
+      _loadBookedSlots();
+    }
+  }
+
+  void _onDurationChanged(int duration) {
     setState(() {
-      if (_selectedHours.contains(hour)) {
-        _selectedHours.remove(hour);
-      } else {
-        _selectedHours.add(hour);
-      }
+      _selectedDuration = duration;
+      _applySlotSelection();
     });
   }
 
-  Future<void> _confirmBooking() async {
-    if (_selectedHours.isEmpty) {
+  void _onSlotTapped(int hour) {
+    // If the slot is already booked, disallow
+    if (_bookedHours.contains(hour)) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select at least 1 hourly slot')),
+        SnackBar(
+          content: Text(
+            '${_formatHour(hour)} is already booked by another team. Sports nets are single-occupancy.',
+          ),
+          backgroundColor: Colors.redAccent,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
+    // Check if contiguous block is available
+    final closing = widget.net.closingHour;
+    if (hour + _selectedDuration > closing) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Cannot select $_selectedDuration hours: Venue closes at ${_formatHour(closing)}.',
+          ),
+          backgroundColor: Colors.orangeAccent,
+        ),
+      );
+      return;
+    }
+
+    // Zero-overlap collision test
+    for (int h = hour; h < hour + _selectedDuration; h++) {
+      if (_bookedHours.contains(h)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Cannot select $_selectedDuration-hour block: ${_formatHour(h)} is already booked. Slots cannot overlap.',
+            ),
+            backgroundColor: Colors.redAccent,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+        return;
+      }
+    }
+
+    setState(() {
+      _startHour = hour;
+      _applySlotSelection();
+    });
+  }
+
+  void _applySlotSelection() {
+    _selectedHours.clear();
+    if (_startHour == null) return;
+
+    for (int h = _startHour!; h < _startHour! + _selectedDuration; h++) {
+      if (!_bookedHours.contains(h) && h < widget.net.closingHour) {
+        _selectedHours.add(h);
+      }
+    }
+  }
+
+  Future<void> _confirmBooking() async {
+    if (_selectedHours.isEmpty || _startHour == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select an available starting hourly slot.')),
       );
       return;
     }
 
     if (_nameController.text.trim().isEmpty || _phoneController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please provide your name and contact phone number')),
+        const SnackBar(content: Text('Please provide your name and contact phone number.')),
       );
       return;
     }
@@ -102,8 +202,6 @@ class _BookSlotScreenState extends State<BookSlotScreen> {
     try {
       final sortedHours = _selectedHours.toList()..sort();
       final dateStr = _formatDate(_selectedDate);
-
-      // Book each chosen slot or contiguous range
       final startHour = sortedHours.first;
       final endHour = sortedHours.last + 1;
 
@@ -122,20 +220,27 @@ class _BookSlotScreenState extends State<BookSlotScreen> {
       );
 
       if (mounted) {
-        _showSuccessDialog(bookingId);
+        _showSuccessDialog(bookingId, startHour, endHour);
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Booking error: $e'), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text('Booking error: $e'),
+            backgroundColor: Colors.redAccent,
+            duration: const Duration(seconds: 4),
+          ),
         );
+        _loadBookedSlots(); // Refresh slot state
       }
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
   }
 
-  void _showSuccessDialog(String bookingId) {
+  void _showSuccessDialog(String bookingId, int startHour, int endHour) {
+    final totalAmount = widget.net.hourlyRate * (endHour - startHour);
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -155,23 +260,28 @@ class _BookSlotScreenState extends State<BookSlotScreen> {
           children: [
             Text(
               'Facility: ${widget.facility.name}',
-              style: const TextStyle(color: Colors.white70, fontSize: 14),
+              style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
             ),
+            const SizedBox(height: 4),
             Text(
               'Net: ${widget.net.name} (${widget.net.sport})',
-              style: const TextStyle(color: Colors.white70, fontSize: 14),
+              style: const TextStyle(color: Colors.white70, fontSize: 13),
             ),
             Text(
               'Date: ${_formatDate(_selectedDate)}',
-              style: const TextStyle(color: Colors.white70, fontSize: 14),
+              style: const TextStyle(color: Colors.white70, fontSize: 13),
+            ),
+            Text(
+              'Time: ${_formatHour(startHour)} - ${_formatHour(endHour)} (${endHour - startHour} Hours)',
+              style: const TextStyle(color: Color(0xFF38BDF8), fontSize: 13, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: Colors.green.withOpacity(0.15),
+                color: Colors.green.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.green.withOpacity(0.4)),
+                border: Border.all(color: Colors.green.withValues(alpha: 0.4)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -182,7 +292,7 @@ class _BookSlotScreenState extends State<BookSlotScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Total Due: PKR ${(widget.net.hourlyRate * _selectedHours.length).toInt()} (Pay at venue desk)',
+                    'Total Due: PKR ${totalAmount.toInt()} (Pay at venue desk)',
                     style: const TextStyle(color: Colors.white, fontSize: 12),
                   ),
                 ],
@@ -191,12 +301,18 @@ class _BookSlotScreenState extends State<BookSlotScreen> {
           ],
         ),
         actions: [
-          TextButton(
+          TextButton.icon(
+            icon: const Icon(Icons.navigation, color: Color(0xFF38BDF8), size: 18),
+            label: const Text('Navigate (OSM GPS)', style: TextStyle(color: Color(0xFF38BDF8))),
             onPressed: () {
-              Navigator.pop(ctx); // Close dialog
-              Navigator.pop(context); // Back to facility
+              Navigator.pop(ctx);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => MapScreen(targetFacilityId: widget.facility.id),
+                ),
+              );
             },
-            child: const Text('Back to Venue', style: TextStyle(color: Colors.white60)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -210,7 +326,7 @@ class _BookSlotScreenState extends State<BookSlotScreen> {
                 MaterialPageRoute(builder: (_) => const CustomerBookingsScreen()),
               );
             },
-            child: const Text('View My Bookings', style: TextStyle(color: Colors.white)),
+            child: const Text('My Bookings', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -220,6 +336,8 @@ class _BookSlotScreenState extends State<BookSlotScreen> {
   @override
   Widget build(BuildContext context) {
     final double totalAmount = widget.net.hourlyRate * _selectedHours.length;
+    final totalHoursCount = (widget.net.closingHour - widget.net.openingHour).clamp(1, 24);
+    final availableCount = totalHoursCount - _bookedHours.length;
 
     return Scaffold(
       backgroundColor: const Color(0xFF0F172A),
@@ -234,7 +352,7 @@ class _BookSlotScreenState extends State<BookSlotScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Book Hourly Slot',
+              'Zero-Overlap Slot Booking',
               style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
             ),
             Text(
@@ -243,6 +361,13 @@ class _BookSlotScreenState extends State<BookSlotScreen> {
             ),
           ],
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.calendar_month, color: Color(0xFF38BDF8)),
+            tooltip: 'Open Calendar',
+            onPressed: _pickCalendarDate,
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -263,7 +388,7 @@ class _BookSlotScreenState extends State<BookSlotScreen> {
                     width: 48,
                     height: 48,
                     decoration: BoxDecoration(
-                      color: const Color(0xFF2563EB).withOpacity(0.2),
+                      color: const Color(0xFF2563EB).withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: const Icon(Icons.sports_cricket, color: Color(0xFF38BDF8), size: 24),
@@ -278,29 +403,55 @@ class _BookSlotScreenState extends State<BookSlotScreen> {
                           style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
                         ),
                         Text(
-                          '${widget.net.lengthFt.toInt()}ft × ${widget.net.widthFt.toInt()}ft (${widget.net.shape})',
+                          '${widget.net.lengthFt.toInt()}ft × ${widget.net.widthFt.toInt()}ft (${widget.net.sport})',
                           style: const TextStyle(color: Colors.white60, fontSize: 12),
                         ),
                       ],
                     ),
                   ),
-                  Text(
-                    'PKR ${widget.net.hourlyRate.toInt()}/hr',
-                    style: const TextStyle(color: Colors.greenAccent, fontSize: 14, fontWeight: FontWeight.bold),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        'PKR ${widget.net.hourlyRate.toInt()}/hr',
+                        style: const TextStyle(color: Colors.greenAccent, fontSize: 14, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '$availableCount slots free',
+                        style: TextStyle(
+                          color: availableCount > 0 ? Colors.white60 : Colors.redAccent,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
             ),
             const SizedBox(height: 20),
 
-            // Date Picker Section
-            const Text(
-              '1. Select Date',
-              style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+            // Section 1: Interactive Date & Calendar Strip
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  '1. Select Date (Calendar)',
+                  style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+                ),
+                TextButton.icon(
+                  onPressed: _pickCalendarDate,
+                  icon: const Icon(Icons.calendar_today, size: 14, color: Color(0xFF38BDF8)),
+                  label: const Text(
+                    'Full Calendar',
+                    style: TextStyle(color: Color(0xFF38BDF8), fontSize: 12),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 8),
             SizedBox(
-              height: 70,
+              height: 72,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 itemCount: 14,
@@ -312,7 +463,12 @@ class _BookSlotScreenState extends State<BookSlotScreen> {
                       date.day == _selectedDate.day;
 
                   final dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+                  final monthNames = [
+                    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+                  ];
                   final dayStr = index == 0 ? 'Today' : dayNames[date.weekday - 1];
+                  final monthStr = monthNames[date.month - 1];
 
                   return GestureDetector(
                     onTap: () {
@@ -323,7 +479,7 @@ class _BookSlotScreenState extends State<BookSlotScreen> {
                     },
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 200),
-                      width: 60,
+                      width: 64,
                       decoration: BoxDecoration(
                         color: isSelected ? const Color(0xFF2563EB) : const Color(0xFF1E293B),
                         borderRadius: BorderRadius.circular(12),
@@ -343,13 +499,20 @@ class _BookSlotScreenState extends State<BookSlotScreen> {
                               fontWeight: FontWeight.w600,
                             ),
                           ),
-                          const SizedBox(height: 4),
+                          const SizedBox(height: 3),
                           Text(
                             date.day.toString(),
-                            style: TextStyle(
-                              color: isSelected ? Colors.white : Colors.white,
+                            style: const TextStyle(
+                              color: Colors.white,
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Text(
+                            monthStr,
+                            style: TextStyle(
+                              color: isSelected ? Colors.white70 : Colors.white38,
+                              fontSize: 9,
                             ),
                           ),
                         ],
@@ -359,14 +522,58 @@ class _BookSlotScreenState extends State<BookSlotScreen> {
                 },
               ),
             ),
+            const SizedBox(height: 22),
+
+            // Section 2: Duration Selector (1h, 2h, 3h, 4h)
+            const Text(
+              '2. Select Booking Duration',
+              style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'Choose how many continuous hours you want to reserve this net:',
+              style: TextStyle(color: Colors.white54, fontSize: 12),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: _durationOptions.map((hours) {
+                final isSelected = _selectedDuration == hours;
+                return Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: isSelected ? const Color(0xFF2563EB) : const Color(0xFF1E293B),
+                        foregroundColor: isSelected ? Colors.white : Colors.white70,
+                        elevation: isSelected ? 2 : 0,
+                        side: BorderSide(
+                          color: isSelected ? const Color(0xFF38BDF8) : Colors.white12,
+                          width: isSelected ? 1.5 : 1,
+                        ),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      onPressed: () => _onDurationChanged(hours),
+                      child: Text(
+                        '$hours hr${hours > 1 ? 's' : ''}',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
             const SizedBox(height: 24),
 
-            // Hourly Slot Selection Section
+            // Section 3: Hourly Slot Selection & Availability Grid
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 const Text(
-                  '2. Choose Hourly Slots',
+                  '3. Pick Starting Hour',
                   style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
                 ),
                 if (_isLoadingSlots)
@@ -382,16 +589,16 @@ class _BookSlotScreenState extends State<BookSlotScreen> {
             // Slots Legend
             Row(
               children: [
-                _buildLegendItem(const Color(0xFF1E293B), 'Available'),
-                const SizedBox(width: 14),
-                _buildLegendItem(const Color(0xFF2563EB), 'Selected'),
-                const SizedBox(width: 14),
-                _buildLegendItem(Colors.redAccent.withOpacity(0.3), 'Booked'),
+                _buildLegendItem(const Color(0xFF1E293B), 'Available', Colors.white70),
+                const SizedBox(width: 12),
+                _buildLegendItem(const Color(0xFF2563EB), 'Selected', Colors.white),
+                const SizedBox(width: 12),
+                _buildLegendItem(Colors.redAccent.withValues(alpha: 0.15), 'Booked 🔒', Colors.redAccent),
               ],
             ),
             const SizedBox(height: 14),
 
-            // Slot Grid (Opening to Closing Hour)
+            // Slot Grid
             GridView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
@@ -399,29 +606,43 @@ class _BookSlotScreenState extends State<BookSlotScreen> {
                 crossAxisCount: 3,
                 crossAxisSpacing: 8,
                 mainAxisSpacing: 8,
-                childAspectRatio: 2.2,
+                childAspectRatio: 2.1,
               ),
-              itemCount: (widget.net.closingHour - widget.net.openingHour).clamp(1, 24),
+              itemCount: totalHoursCount,
               itemBuilder: (context, index) {
                 final hour = widget.net.openingHour + index;
                 final isBooked = _bookedHours.contains(hour);
                 final isSelected = _selectedHours.contains(hour);
+                final isStartingHour = _startHour == hour;
+
+                // Check if starting at this hour would cause collision for duration
+                bool wouldCollide = false;
+                for (int h = hour; h < hour + _selectedDuration; h++) {
+                  if (_bookedHours.contains(h) || h >= widget.net.closingHour) {
+                    wouldCollide = true;
+                    break;
+                  }
+                }
 
                 Color bgColor;
                 Color textColor;
                 Border border;
 
                 if (isBooked) {
-                  bgColor = Colors.redAccent.withOpacity(0.15);
-                  textColor = Colors.redAccent;
-                  border = Border.all(color: Colors.redAccent.withOpacity(0.3));
+                  bgColor = Colors.redAccent.withValues(alpha: 0.12);
+                  textColor = Colors.redAccent.withValues(alpha: 0.8);
+                  border = Border.all(color: Colors.redAccent.withValues(alpha: 0.3));
                 } else if (isSelected) {
                   bgColor = const Color(0xFF2563EB);
                   textColor = Colors.white;
                   border = Border.all(color: const Color(0xFF38BDF8), width: 1.5);
+                } else if (wouldCollide && _selectedDuration > 1) {
+                  bgColor = const Color(0xFF1E293B).withValues(alpha: 0.5);
+                  textColor = Colors.white38;
+                  border = Border.all(color: Colors.white10);
                 } else {
                   bgColor = const Color(0xFF1E293B);
-                  textColor = Colors.white70;
+                  textColor = Colors.white;
                   border = Border.all(color: Colors.white12);
                 }
 
@@ -441,14 +662,34 @@ class _BookSlotScreenState extends State<BookSlotScreen> {
                           '$hour:00 - ${hour + 1}:00',
                           style: TextStyle(
                             color: textColor,
-                            fontSize: 12,
+                            fontSize: 11,
                             fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
                           ),
                         ),
+                        const SizedBox(height: 2),
                         if (isBooked)
+                          const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.lock, size: 10, color: Colors.redAccent),
+                              SizedBox(width: 2),
+                              Text('Booked', style: TextStyle(color: Colors.redAccent, fontSize: 10)),
+                            ],
+                          )
+                        else if (isStartingHour)
+                          Text(
+                            'Start (${_selectedDuration}h)',
+                            style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                          )
+                        else if (isSelected)
                           const Text(
-                            'Booked',
-                            style: TextStyle(color: Colors.redAccent, fontSize: 9, fontWeight: FontWeight.bold),
+                            'Included',
+                            style: TextStyle(color: Colors.white70, fontSize: 10),
+                          )
+                        else
+                          Text(
+                            'PKR ${widget.net.hourlyRate.toInt()}',
+                            style: const TextStyle(color: Colors.white38, fontSize: 10),
                           ),
                       ],
                     ),
@@ -458,19 +699,57 @@ class _BookSlotScreenState extends State<BookSlotScreen> {
             ),
             const SizedBox(height: 24),
 
-            // Player Contact Info
+            // Booking Summary Banner (If Slots Selected)
+            if (_selectedHours.isNotEmpty && _startHour != null) ...[
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2563EB).withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFF38BDF8).withValues(alpha: 0.4)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Row(
+                      children: [
+                        Icon(Icons.verified, color: Color(0xFF38BDF8), size: 18),
+                        SizedBox(width: 8),
+                        Text(
+                          'Zero-Overlap Slot Confirmed',
+                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Reserved Time: ${_formatHour(_startHour!)} to ${_formatHour(_startHour! + _selectedDuration)} ($_selectedDuration Hours)',
+                      style: const TextStyle(color: Color(0xFF38BDF8), fontSize: 13, fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Total Price: PKR ${totalAmount.toInt()} (PKR ${widget.net.hourlyRate.toInt()}/hr × $_selectedDuration)',
+                      style: const TextStyle(color: Colors.greenAccent, fontSize: 13, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+            ],
+
+            // Section 4: Customer Contact Info
             const Text(
-              '3. Player Details',
+              '4. Player / Team Contact Details',
               style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 12),
             TextField(
               controller: _nameController,
               style: const TextStyle(color: Colors.white),
               decoration: InputDecoration(
-                labelText: 'Full Name',
+                labelText: 'Full Name / Team Name',
                 labelStyle: const TextStyle(color: Colors.white60),
-                prefixIcon: const Icon(Icons.person, color: Colors.white60),
+                prefixIcon: const Icon(Icons.person, color: Color(0xFF38BDF8)),
                 filled: true,
                 fillColor: const Color(0xFF1E293B),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
@@ -482,129 +761,70 @@ class _BookSlotScreenState extends State<BookSlotScreen> {
               keyboardType: TextInputType.phone,
               style: const TextStyle(color: Colors.white),
               decoration: InputDecoration(
-                labelText: 'Phone Number (for booking confirmation)',
+                labelText: 'Phone Number (for booking verification)',
                 labelStyle: const TextStyle(color: Colors.white60),
-                prefixIcon: const Icon(Icons.phone, color: Colors.white60),
+                prefixIcon: const Icon(Icons.phone, color: Color(0xFF38BDF8)),
                 filled: true,
                 fillColor: const Color(0xFF1E293B),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 24),
 
-            // Payment Notice: Cash on Arrival
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.green.withOpacity(0.12),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.green.withOpacity(0.3)),
+            // Confirm Button
+            SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF10B981),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  elevation: 2,
+                ),
+                onPressed: _isSubmitting ? null : _confirmBooking,
+                child: _isSubmitting
+                    ? const CircularProgressIndicator(color: Colors.white)
+                    : Text(
+                        _selectedHours.isEmpty
+                            ? 'Select Slots to Continue'
+                            : 'Confirm Booking • PKR ${totalAmount.toInt()} (Cash)',
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
               ),
-              child: const Row(
-                children: [
-                  Icon(Icons.payments_outlined, color: Colors.greenAccent, size: 24),
-                  SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Payment Method: Cash on Arrival',
-                          style: TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold, fontSize: 13),
-                        ),
-                        SizedBox(height: 2),
-                        Text(
-                          'No advance online payment needed. Please pay in cash at the venue counter.',
-                          style: TextStyle(color: Colors.white70, fontSize: 11),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+            ),
+            const SizedBox(height: 12),
+            const Center(
+              child: Text(
+                'Payment Mode: Cash on Arrival at Venue Desk',
+                style: TextStyle(color: Colors.white54, fontSize: 12),
               ),
             ),
             const SizedBox(height: 24),
-
-            // Total Summary & Submit Button
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: const Color(0xFF1E293B),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.white12),
-              ),
-              child: Column(
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'Total Selected Hours:',
-                        style: TextStyle(color: Colors.white70, fontSize: 14),
-                      ),
-                      Text(
-                        '${_selectedHours.length} hr(s)',
-                        style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'Total Payable (Cash):',
-                        style: TextStyle(color: Colors.white70, fontSize: 15, fontWeight: FontWeight.w600),
-                      ),
-                      Text(
-                        'PKR ${totalAmount.toInt()}',
-                        style: const TextStyle(color: Colors.greenAccent, fontSize: 18, fontWeight: FontWeight.bold),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 48,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF2563EB),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                      ),
-                      onPressed: _isSubmitting ? null : _confirmBooking,
-                      child: _isSubmitting
-                          ? const CircularProgressIndicator(color: Colors.white)
-                          : const Text(
-                              'Confirm Reservation (Cash on Arrival)',
-                              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white),
-                            ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 32),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildLegendItem(Color color, String label) {
+  Widget _buildLegendItem(Color color, String label, Color textColor) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
-          width: 12,
-          height: 12,
+          width: 14,
+          height: 14,
           decoration: BoxDecoration(
             color: color,
-            borderRadius: BorderRadius.circular(3),
+            borderRadius: BorderRadius.circular(4),
             border: Border.all(color: Colors.white24),
           ),
         ),
-        const SizedBox(width: 4),
-        Text(label, style: const TextStyle(color: Colors.white60, fontSize: 11)),
+        const SizedBox(width: 6),
+        Text(
+          label,
+          style: TextStyle(color: textColor, fontSize: 11, fontWeight: FontWeight.w500),
+        ),
       ],
     );
   }

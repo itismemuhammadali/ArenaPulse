@@ -9,10 +9,21 @@ import 'package:sports_chat_app/src/screens/club_profile_screen.dart';
 import 'package:sports_chat_app/src/screens/osm_location_picker_screen.dart';
 import 'package:sports_chat_app/src/services/facility_service.dart';
 import 'package:sports_chat_app/src/screens/facility_details_screen.dart';
+import 'package:sports_chat_app/src/services/osrm_routing_service.dart';
+import 'package:sports_chat_app/src/widgets/turn_by_turn_overlay.dart';
 import 'dart:math';
 
 class MapScreen extends StatefulWidget {
-  const MapScreen({super.key});
+  final String? targetFacilityId;
+  final bool autoStartNav;
+  final FacilityBooking? activeBooking;
+
+  const MapScreen({
+    super.key,
+    this.targetFacilityId,
+    this.autoStartNav = false,
+    this.activeBooking,
+  });
 
   @override
   State<MapScreen> createState() => _MapScreenState();
@@ -30,10 +41,19 @@ class _MapScreenState extends State<MapScreen> {
 
   final _auth = FirebaseAuth.instance;
   final _firestore = FirebaseFirestore.instance;
+  final FacilityService _facilityService = FacilityService();
+  final OsrmRoutingService _routingService = OsrmRoutingService();
+
   List<Map<String, dynamic>> _adminClubs = [];
   bool _isLoadingClubs = false;
   List<Map<String, dynamic>> _clubsInRadius = [];
   List<Facility> _facilitiesInRadius = [];
+
+  // Turn-by-Turn Navigation state
+  RoutePlan? _activeRoutePlan;
+  bool _isNavigating = false;
+  String _navTargetTitle = '';
+  String _navTargetPhone = '';
 
   @override
   void initState() {
@@ -361,6 +381,10 @@ class _MapScreenState extends State<MapScreen> {
       }
 
       setState(() {});
+
+      if (widget.targetFacilityId != null) {
+        _handleTargetFacilityNavigation();
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -368,6 +392,67 @@ class _MapScreenState extends State<MapScreen> {
         );
       }
     }
+  }
+
+  Future<void> _handleTargetFacilityNavigation() async {
+    Facility? target;
+    for (final f in _facilitiesInRadius) {
+      if (f.id == widget.targetFacilityId) {
+        target = f;
+        break;
+      }
+    }
+    target ??= await _facilityService.getFacility(widget.targetFacilityId!);
+    if (target != null && mounted) {
+      _mapController?.move(LatLng(target.latitude, target.longitude), 15.0);
+      if (widget.autoStartNav && !_isNavigating) {
+        _startNavigationToFacility(target);
+      }
+    }
+  }
+
+  Future<void> _startNavigationToFacility(Facility facility) async {
+    setState(() => _isLoadingLocation = true);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Calculating OSRM route to ${facility.name}...'),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+
+    try {
+      final dest = LatLng(facility.latitude, facility.longitude);
+      final routePlan = await _routingService.getDrivingRoute(
+        start: _currentLocation,
+        destination: dest,
+      );
+
+      if (mounted) {
+        setState(() {
+          _activeRoutePlan = routePlan;
+          _navTargetTitle = facility.name;
+          _navTargetPhone = facility.phone;
+          _isNavigating = true;
+          _isLoadingLocation = false;
+        });
+
+        _mapController?.move(_currentLocation, 16.0);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoadingLocation = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not fetch route: $e'), backgroundColor: Colors.redAccent),
+        );
+      }
+    }
+  }
+
+  void _endNavigation() {
+    setState(() {
+      _isNavigating = false;
+      _activeRoutePlan = null;
+    });
   }
 
   void _showFacilityModal(Facility facility) {
@@ -431,29 +516,51 @@ class _MapScreenState extends State<MapScreen> {
               )).toList(),
             ),
             const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              height: 46,
-              child: ElevatedButton.icon(
-                icon: const Icon(Icons.sports_baseball, color: Colors.white, size: 18),
-                label: const Text(
-                  'View Available Nets & Book',
-                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF2563EB),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                ),
-                onPressed: () {
-                  Navigator.pop(ctx);
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => FacilityDetailsScreen(facility: facility),
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    icon: const Icon(Icons.sports_baseball, color: Colors.white, size: 16),
+                    label: const Text(
+                      'View Nets & Book',
+                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
                     ),
-                  );
-                },
-              ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF2563EB),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => FacilityDetailsScreen(facility: facility),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.navigation_rounded, color: Color(0xFF38BDF8), size: 16),
+                    label: const Text(
+                      'OSM Navigation',
+                      style: TextStyle(color: Color(0xFF38BDF8), fontWeight: FontWeight.bold, fontSize: 13),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: Color(0xFF38BDF8)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      _startNavigationToFacility(facility);
+                    },
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -1136,11 +1243,22 @@ class _MapScreenState extends State<MapScreen> {
                 userAgentPackageName: 'com.sprintindex.app',
               ),
               CircleLayer(circles: _circles),
+              if (_activeRoutePlan != null)
+                PolylineLayer(
+                  polylines: [
+                    Polyline(
+                      points: _activeRoutePlan!.polyline,
+                      color: const Color(0xFF2563EB),
+                      strokeWidth: 5.5,
+                    ),
+                  ],
+                ),
               MarkerLayer(markers: _markers),
             ],
           ),
-          // Top controls
-          SafeArea(
+          // Top controls (hidden during active navigation)
+          if (!_isNavigating)
+            SafeArea(
             child: Column(
               children: [
                 Container(
@@ -1355,58 +1473,78 @@ class _MapScreenState extends State<MapScreen> {
               ],
             ),
           ),
-          // Menu Button - Bottom Left (Clubs)
-          Positioned(
-            left: 16,
-            bottom: 16,
-            child: FloatingActionButton(
-              heroTag: 'menuButton',
-              onPressed: _showClubsListSheet,
-              backgroundColor: Colors.white,
-              child: const Icon(
-                Icons.menu,
-                color: Color(0xFFFF8C00),
+          // Bottom Controls (hidden during navigation)
+          if (!_isNavigating) ...[
+            // Menu Button - Bottom Left (Clubs)
+            Positioned(
+              left: 16,
+              bottom: 16,
+              child: FloatingActionButton(
+                heroTag: 'menuButton',
+                onPressed: _showClubsListSheet,
+                backgroundColor: Colors.white,
+                child: const Icon(
+                  Icons.menu,
+                  color: Color(0xFFFF8C00),
+                ),
               ),
             ),
-          ),
-          // Facilities & Nets Button - Bottom Left
-          Positioned(
-            left: 80,
-            bottom: 16,
-            child: FloatingActionButton.extended(
-              heroTag: 'facilitiesButton',
-              onPressed: _showFacilitiesListSheet,
-              backgroundColor: const Color(0xFF10B981),
-              icon: const Icon(Icons.sports_cricket, color: Colors.white, size: 20),
-              label: Text(
-                'Nets (${_facilitiesInRadius.length})',
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+            // Facilities & Nets Button - Bottom Left
+            Positioned(
+              left: 80,
+              bottom: 16,
+              child: FloatingActionButton.extended(
+                heroTag: 'facilitiesButton',
+                onPressed: _showFacilitiesListSheet,
+                backgroundColor: const Color(0xFF10B981),
+                icon: const Icon(Icons.sports_cricket, color: Colors.white, size: 20),
+                label: Text(
+                  'Nets (${_facilitiesInRadius.length})',
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                ),
               ),
             ),
-          ),
-          // My Location Button
-          Positioned(
-            right: 16,
-            bottom: 16,
-            child: FloatingActionButton(
-              heroTag: 'locationButton',
-              onPressed: _isLoadingLocation ? null : _getCurrentLocation,
-              backgroundColor: Colors.white,
-              child: _isLoadingLocation
-                  ? const SizedBox(
-                      width: 24,
-                      height: 24,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
+            // My Location Button
+            Positioned(
+              right: 16,
+              bottom: 16,
+              child: FloatingActionButton(
+                heroTag: 'locationButton',
+                onPressed: _isLoadingLocation ? null : _getCurrentLocation,
+                backgroundColor: Colors.white,
+                child: _isLoadingLocation
+                    ? const SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Color(0xFF2196F3),
+                        ),
+                      )
+                    : const Icon(
+                        Icons.my_location,
                         color: Color(0xFF2196F3),
                       ),
-                    )
-                  : const Icon(
-                      Icons.my_location,
-                      color: Color(0xFF2196F3),
-                    ),
+              ),
             ),
-          ),
+          ],
+
+          // Turn-by-Turn HUD Overlay (during active navigation)
+          if (_isNavigating && _activeRoutePlan != null)
+            Positioned.fill(
+              child: SafeArea(
+                child: TurnByTurnOverlay(
+                  routePlan: _activeRoutePlan!,
+                  destinationTitle: _navTargetTitle,
+                  destinationPhone: _navTargetPhone,
+                  activeBooking: widget.activeBooking,
+                  onEndNavigation: _endNavigation,
+                  onPositionChanged: (newPos) {
+                    _mapController?.move(newPos, 16.5);
+                  },
+                ),
+              ),
+            ),
         ],
       ),
     );
