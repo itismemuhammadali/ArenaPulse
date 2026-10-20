@@ -1,200 +1,158 @@
-# 🏆 Sports Chat App
+<div align="center">
 
-A comprehensive Flutter application for sports enthusiasts to connect, chat, and share their passion for sports. Built with Firebase backend and real-time features.
+<img src="./assets/branding/logo.png" alt="ArenaPulse Logo" width="140" style="border-radius: 24px; box-shadow: 0 8px 32px rgba(249, 115, 22, 0.35);" />
 
-## ✨ Features
+# ArenaPulse
 
-- 🔐 **Authentication**: Google Sign-In integration
-- 💬 **Real-time Chat**: Instant messaging with Firebase Firestore
-- 📸 **Media Sharing**: Photo and video sharing capabilities
-- 🗺️ **Location Services**: Google Maps integration for location sharing
-- 🔔 **Push Notifications**: Real-time notifications for messages and events
-- 😊 **Emoji Support**: Rich emoji picker for enhanced messaging
-- 🏃‍♂️ **Sports Features**: Specialized features for sports communities
-- 📱 **Cross-Platform**: Runs on Android, iOS, and Web
+### Sports Turf & Court Reservation, Athletic Club Hub & Team Matchmaking Ecosystem
 
-## 🚀 Quick Start
+[![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?style=for-the-badge&logo=flutter&logoColor=white)](https://flutter.dev)
+[![Dart](https://img.shields.io/badge/Dart-3.x-0175C2?style=for-the-badge&logo=dart&logoColor=white)](https://dart.dev)
+[![Firebase](https://img.shields.io/badge/Firebase-Auth%20%7C%20Firestore%20%7C%20FCM-FFCA28?style=for-the-badge&logo=firebase&logoColor=black)](https://firebase.google.com)
+[![Google Maps](https://img.shields.io/badge/Maps-Google%20%26%20OSM-4285F4?style=for-the-badge&logo=google-maps&logoColor=white)](https://cloud.google.com/maps-platform)
+[![License](https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge)](LICENSE)
 
-### Prerequisites
+<p align="center">
+  <b>ArenaPulse</b> is a modern, cross-platform sports networking and venue booking ecosystem designed for recreational athletes, local sports clubs, and facility owners. Seamlessly coordinate turf bookings, join neighborhood teams, vote in match polls, and coordinate game days in real time.
+</p>
 
-- Flutter SDK (3.9.2 or higher)
-- Firebase account
-- Google Cloud Platform account (for Maps API)
-- Android Studio / Xcode for mobile development
-
-### Installation
-
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/Muhammadali2025222/sports-chat-app.git
-   cd sports_chat_app
-   ```
-
-2. **Install dependencies**
-   ```bash
-   flutter pub get
-   ```
-
-3. **Configure API Keys** (IMPORTANT!)
-   ```bash
-   cp api_keys_template.env api_keys.env
-   ```
-   Then edit `api_keys.env` with your actual API keys. See [API_KEYS_SETUP.md](API_KEYS_SETUP.md) for detailed instructions.
-
-4. **Add Firebase Configuration Files**
-   - Download `google-services.json` from Firebase Console → place in `android/app/`
-   - Download `GoogleService-Info.plist` from Firebase Console → place in `ios/Runner/`
-
-5. **Run the app**
-   ```bash
-   flutter run
-   ```
-
-## 📱 Supported Platforms
-
-- ✅ Android (API 21+)
-- ✅ iOS (12.0+)
-- ✅ Web
-- ⚠️ Windows (Limited support)
-- ⚠️ macOS (Limited support)
-- ⚠️ Linux (Limited support)
-
-## 🛠️ Tech Stack
-
-### Frontend
-- **Flutter** - Cross-platform UI framework
-- **Dart** - Programming language
-
-### Backend & Services
-- **Firebase Auth** - User authentication
-- **Cloud Firestore** - Real-time database
-- **Firebase Storage** - File storage
-- **Cloud Functions** - Server-side logic
-- **Firebase Messaging** - Push notifications
-
-### APIs & Integrations
-- **Google Maps API** - Location services
-- **Google Sign-In** - Authentication
-- **Geolocator** - Location tracking
-- **Image Picker** - Camera/gallery access
-
-## 📂 Project Structure
-
-```
-lib/
-├── main.dart                 # App entry point
-├── assets/                   # Images and static assets
-├── models/                   # Data models
-├── services/                 # Firebase and API services
-├── screens/                  # UI screens
-├── widgets/                  # Reusable UI components
-└── utils/                    # Helper functions
-
-android/                      # Android-specific code
-ios/                         # iOS-specific code
-web/                         # Web-specific code
-functions/                   # Firebase Cloud Functions
-```
-
-## 🔧 Configuration
-
-### Firebase Setup
-1. Create Firebase project
-2. Enable Authentication, Firestore, Storage, Functions
-3. Configure security rules (see `firestore.rules` and `storage.rules`)
-4. Deploy Cloud Functions: `firebase deploy --only functions`
-
-### Google Maps Setup
-1. Enable Maps SDK for Android/iOS/JavaScript
-2. Create API key with proper restrictions
-3. Update `web/index.html` with your API key
-
-For detailed setup instructions, see [API_KEYS_SETUP.md](API_KEYS_SETUP.md).
-
-## 🔔 Push Notifications
-
-The app includes comprehensive push notification support:
-- Real-time message notifications
-- Event notifications
-- Background notification handling
-- Custom notification sounds and actions
-
-See [COMPLETE_NOTIFICATIONS_GUIDE.md](COMPLETE_NOTIFICATIONS_GUIDE.md) for setup details.
-
-## 🏗️ Development
-
-### Running Tests
-```bash
-flutter test
-```
-
-### Building for Production
-
-**Android:**
-```bash
-flutter build apk --release
-# or
-flutter build appbundle --release
-```
-
-**iOS:**
-```bash
-flutter build ios --release
-```
-
-**Web:**
-```bash
-flutter build web --release
-```
-
-### Code Quality
-- Uses `flutter_lints` for code analysis
-- Follows Flutter/Dart style guidelines
-- Includes comprehensive error handling
-
-## 📋 Available Scripts
-
-- `flutter run` - Run in development mode
-- `flutter build` - Build for production
-- `flutter test` - Run tests
-- `flutter clean` - Clean build cache
-- `flutter doctor` - Check development setup
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🆘 Troubleshooting
-
-### Common Issues
-
-1. **Build failures**: Run `flutter clean && flutter pub get`
-2. **Firebase connection issues**: Check configuration files
-3. **Maps not loading**: Verify API key and enabled services
-4. **Notifications not working**: Check FCM setup and permissions
-
-### Getting Help
-
-- Check [API_KEYS_SETUP.md](API_KEYS_SETUP.md) for configuration help
-- Review Firebase Console for service status
-- Run `flutter doctor` to check development environment
-- Check the [Issues](../../issues) page for known problems
-
-## 📞 Support
-
-For support and questions:
-- Create an issue in this repository
-- Check existing documentation files
-- Review Firebase and Flutter documentation
+</div>
 
 ---
 
-**⚠️ Security Note**: Never commit API keys or sensitive configuration to version control. Use the provided template files and follow the setup guide.
+## 🌟 Platform Capabilities
+
+ArenaPulse addresses the friction of organizing casual and competitive sports games by uniting facility scheduling with community matchmaking:
+
+```mermaid
+graph TD
+    subgraph ArenaPulse Ecosystem
+        direction TB
+        App[ArenaPulse Unified Engine]
+        App --> P[Player / Athlete Role]
+        App --> O[Facility & Venue Owner Role]
+        App --> A[Platform Super Admin]
+    end
+
+    subgraph Player Experience
+        P --> P1[Turf & Court Discovery on Map]
+        P --> P2[Slot Reservation & Split Booking]
+        P --> P3[Sports Club Group Chats]
+        P --> P4[Interactive Match Polls & Events]
+        P --> P5[Discover Local Players & Opponents]
+    end
+
+    subgraph Facility Owner Experience
+        O --> O1[Venue & Court Onboarding]
+        O --> O2[Dynamic Pricing & Slot Schedules]
+        O --> O3[Booking Pipeline & Attendance]
+        O --> O4[Customer Communication Channel]
+    end
+
+    subgraph Platform Governance
+        A --> A1[Global Facility Verification]
+        A --> A2[Content & Community Moderation]
+        A --> A3[User Block & Report Safeguards]
+    end
+```
+
+---
+
+## ⚽ Booking & Match Coordination Flow
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Player as Team Captain / Player
+    participant App as ArenaPulse Platform
+    actor Owner as Turf / Facility Owner
+    participant Firebase as Firebase Realtime Cloud
+
+    Player->>App: Browse Nearby Turfs via Interactive Map
+    App->>Firebase: Fetch Available Time Slots & Court Amenities
+    Player->>App: Select Date, Time Slot & Confirm Booking
+    App->>Owner: Instant Push Notification of New Reservation
+    Owner->>App: Acknowledge & Lock Court Slot
+    Player->>App: Share Match Event to Club Group Chat
+    App->>Firebase: Broadcast Roster Invite & Polling Widget
+    Note over Player: Squad votes on setlists, positions, and headcount
+    App-->>Player: Automated Game Day Reminder Notification
+```
+
+---
+
+## ✨ Core Features
+
+### 🏟️ 1. Venue & Slot Booking
+- **Dual Map Support:** Integrated Google Maps and OpenStreetMap (OSM) for seamless global and local location discovery.
+- **Granular Scheduling:** Reserve cricket pitches, football turfs, padel courts, tennis courts, and basketball arenas by the hour.
+- **Dynamic Slot States:** Real-time visibility into open, held, and confirmed reservations to eliminate double-booking.
+
+### 💬 2. Community & Club Hub
+- **Sports Clubs:** Create public or private sports clubs (e.g. "Downtown Futsal Club", "Sunday Morning Cricket").
+- **Real-Time Group Chat:** Instant messaging with media sharing, match coordination, and push notifications.
+- **Interactive Match Polls:** Create headcounts and RSVP polls to finalize player rosters before match day.
+
+### 🛡️ 3. Safety, Security & Admin
+- **Community Moderation:** Built-in reporting and user blocking mechanisms with admin review tools.
+- **Facility Owner Dashboard:** View earnings, peak hour utilization, and booking history in a dedicated owner view.
+- **Cross-Platform Support:** Native experience across iOS, Android, Web, macOS, Linux, and Windows.
+
+---
+
+## 📁 Repository Structure
+
+```
+ArenaPulse/
+├── assets/
+│   └── branding/
+│       └── logo.png               # Official brand asset
+├── backend/                       # PHP media upload & storage service
+├── functions/                     # Firebase Cloud Functions (Push notifications, auto-cleanup)
+├── lib/
+│   ├── main.dart                  # Application bootstrap
+│   ├── firebase_options.dart      # Multi-platform Firebase configuration
+│   └── src/
+│       ├── screens/               # 38+ Application Screens (Book slot, club profile, maps)
+│       ├── services/              # 28+ Business Services (Auth, bookings, clubs, locations)
+│       ├── tabs/                  # Feed tabs (Polls, events, media posts, comments)
+│       ├── utils/                 # Engagement & calculation helpers
+│       └── widgets/               # Turn-by-turn overlay, dialogs, bottom nav
+├── test/                          # Unit and widget test suite
+├── firestore.rules                # Hardened Firestore security rules
+└── README.md
+```
+
+---
+
+## 🚀 Getting Started
+
+### Prerequisites
+- **Flutter SDK:** `>= 3.9.0`
+- **Firebase Project:** (Authentication, Firestore, Cloud Messaging, Storage)
+- **Google Maps API Key:** (Optional for Google Maps rendering; OSM works out of the box)
+
+### Quick Start
+```bash
+# Clone the repository
+git clone https://github.com/itismemuhammadali/ArenaPulse.git
+cd ArenaPulse
+
+# Install dependencies
+flutter pub get
+
+# Launch on connected mobile device or simulator
+flutter run
+```
+
+---
+
+## 🔒 Confidentiality & White-Label Notice
+This repository is an open-source demonstration and portfolio showcase. All proprietary client data, commercial vendor contracts, live API tokens, and client credentials have been sanitized and decoupled.
+
+---
+
+## 👨‍💻 Author
+**Muhammad Ali**
+- GitHub: [@itismemuhammadali](https://github.com/itismemuhammadali)
+- Portfolio & Engineering Showcase
