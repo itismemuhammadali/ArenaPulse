@@ -1,6 +1,8 @@
 <div align="center">
 
-<img src="./assets/branding/logo.png" alt="ArenaPulse Logo" width="140" style="border-radius: 24px; box-shadow: 0 8px 32px rgba(249, 115, 22, 0.35);" />
+<p align="center">
+  <img src="assets/branding/logo.jpg" alt="ArenaPulse Sports & Community Chat Logo" width="180" style="border-radius: 24px; box-shadow: 0 8px 32px rgba(249, 115, 22, 0.35);" />
+</p>
 
 # ArenaPulse
 
